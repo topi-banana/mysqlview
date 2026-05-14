@@ -92,6 +92,8 @@ docker run --rm -it \
 
 The resulting image is `FROM scratch` plus the static musl binary — nothing else. Ctrl-C / `docker stop` work because the backend installs explicit SIGINT/SIGTERM handlers (Linux silently drops signals delivered to PID 1 unless a handler is installed).
 
+The image declares its own `HEALTHCHECK` that runs `mysqlview-backend --healthcheck` from inside the container — no `curl`/`wget` are needed thanks to the binary doubling as its own HTTP probe. The probe queries `/api/health`, which pings the MySQL pool, so a `healthy` status means both the HTTP server and the database are reachable.
+
 > Keep the host-side port mapped to `127.0.0.1` (`-p 127.0.0.1:3000:3000`). The binary still has no authentication.
 
 ### Development variant (no embedding)

@@ -59,4 +59,12 @@ COPY --from=backend-builder \
     /mysqlview
 
 EXPOSE 3000
+
+# Probe /api/health from inside the container. The binary doubles as its
+# own HTTP client when invoked with `--healthcheck`, so no extra tools
+# (curl, wget) are needed in the scratch image. /api/health pings the
+# MySQL pool, so the container is "healthy" only once the DB is reachable.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD ["/mysqlview", "--healthcheck"]
+
 ENTRYPOINT ["/mysqlview"]
