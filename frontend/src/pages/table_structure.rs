@@ -1,11 +1,14 @@
-use mysqlview_types::{ColumnInfo, ForeignKeyInfo, IndexInfo, TableStructure};
+use mysqlview_types::{ColumnInfo, DropTableRequest, ForeignKeyInfo, IndexInfo, TableStructure};
 use yew::prelude::*;
 use yew_router::prelude::*;
 
 use crate::api::{self, ApiClientError};
+use crate::components::button::{Button, ButtonVariant};
 use crate::components::chip::{Chip, ChipTone};
+use crate::components::confirm_dialog::ConfirmDialog;
 use crate::components::error_banner::ErrorBanner;
 use crate::components::skeleton::Skeleton;
+use crate::components::table_alter::TableAlter;
 use crate::router::Route;
 use crate::state::LoadingState;
 use crate::theme;
@@ -28,11 +31,22 @@ pub enum Msg {
     Fetch,
     Loaded(Result<TableStructure, ApiClientError>),
     SetTab(Tab),
+    OpenAlter,
+    CloseAlter,
+    Altered(String),
+    OpenDrop,
+    CancelDrop,
+    ConfirmDrop,
+    Dropped(Result<(), ApiClientError>),
 }
 
 pub struct TableStructurePage {
     state: LoadingState<TableStructure>,
     tab: Tab,
+    show_alter: bool,
+    show_drop: bool,
+    dropping: bool,
+    drop_error: Option<ApiClientError>,
 }
 
 impl Component for TableStructurePage {
@@ -44,6 +58,10 @@ impl Component for TableStructurePage {
         Self {
             state: LoadingState::Loading,
             tab: Tab::Columns,
+            show_alter: false,
+            show_drop: false,
+            dropping: false,
+            drop_error: None,
         }
     }
 
@@ -76,28 +94,113 @@ impl Component for TableStructurePage {
                 self.tab = t;
                 true
             }
+            Msg::OpenAlter => {
+                self.show_alter = true;
+                true
+            }
+            Msg::CloseAlter => {
+                self.show_alter = false;
+                true
+            }
+            Msg::Altered(new_table) => {
+                self.show_alter = false;
+                if new_table != ctx.props().table {
+                    if let Some(nav) = ctx.link().navigator() {
+                        nav.push(&Route::Structure {
+                            db: ctx.props().db.clone(),
+                            table: new_table,
+                        });
+                    }
+                } else {
+                    ctx.link().send_message(Msg::Fetch);
+                }
+                true
+            }
+            Msg::OpenDrop => {
+                self.show_drop = true;
+                self.drop_error = None;
+                true
+            }
+            Msg::CancelDrop => {
+                if self.dropping {
+                    return false;
+                }
+                self.show_drop = false;
+                true
+            }
+            Msg::ConfirmDrop => {
+                self.dropping = true;
+                let db = ctx.props().db.clone();
+                let table = ctx.props().table.clone();
+                ctx.link().send_future(async move {
+                    let req = DropTableRequest { if_exists: false };
+                    Msg::Dropped(api::drop_table(&db, &table, &req).await.map(|_| ()))
+                });
+                true
+            }
+            Msg::Dropped(Ok(())) => {
+                self.dropping = false;
+                self.show_drop = false;
+                if let Some(nav) = ctx.link().navigator() {
+                    nav.push(&Route::Database {
+                        db: ctx.props().db.clone(),
+                    });
+                }
+                true
+            }
+            Msg::Dropped(Err(e)) => {
+                self.dropping = false;
+                self.drop_error = Some(e);
+                true
+            }
         }
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let p = ctx.props();
+        let open_alter = ctx.link().callback(|_| Msg::OpenAlter);
+        let close_alter = ctx.link().callback(|_| Msg::CloseAlter);
+        let altered = ctx.link().callback(Msg::Altered);
+        let open_drop = ctx.link().callback(|_| Msg::OpenDrop);
+        let cancel_drop = ctx.link().callback(|_| Msg::CancelDrop);
+        let confirm_drop = ctx.link().callback(|_| Msg::ConfirmDrop);
+        let alter_enabled = matches!(self.state, LoadingState::Ready(_));
+
         html! {
             <div class="space-y-6">
-                <div class="space-y-1">
-                    <div class={theme::OVERLINE}>
-                        <Link<Route> to={Route::Database { db: p.db.clone() }} classes="hover:text-text">
-                            { &p.db }
-                        </Link<Route>>
-                        { " · table" }
+                <div class="flex items-start justify-between gap-4">
+                    <div class="space-y-1">
+                        <div class={theme::OVERLINE}>
+                            <Link<Route> to={Route::Database { db: p.db.clone() }} classes="hover:text-text">
+                                { &p.db }
+                            </Link<Route>>
+                            { " · table" }
+                        </div>
+                        <h1 class={theme::SECTION_HEADING}>{ &p.table }</h1>
+                        <div class="flex gap-2 pt-2">
+                            <Link<Route>
+                                to={Route::Browse { db: p.db.clone(), table: p.table.clone() }}
+                                classes={theme::BTN_GHOST}
+                            >
+                                { "Browse" }
+                            </Link<Route>>
+                        </div>
                     </div>
-                    <h1 class={theme::SECTION_HEADING}>{ &p.table }</h1>
-                    <div class="flex gap-2 pt-2">
-                        <Link<Route>
-                            to={Route::Browse { db: p.db.clone(), table: p.table.clone() }}
-                            classes={theme::BTN_GHOST}
+                    <div class="flex gap-2">
+                        <Button
+                            variant={ButtonVariant::Secondary}
+                            disabled={!alter_enabled}
+                            onclick={open_alter}
                         >
-                            { "Browse" }
-                        </Link<Route>>
+                            { Html::from("Alter table") }
+                        </Button>
+                        <button
+                            class={theme::BTN_DESTRUCTIVE}
+                            type="button"
+                            onclick={open_drop}
+                        >
+                            { "Drop table" }
+                        </button>
                     </div>
                 </div>
                 <div class="flex gap-1 border-b border-border">
@@ -107,6 +210,33 @@ impl Component for TableStructurePage {
                     { self.tab_button(ctx, Tab::Create, "CREATE") }
                 </div>
                 { self.view_body() }
+                if let Some(e) = &self.drop_error {
+                    <ErrorBanner error={e.clone()} />
+                }
+                if self.show_drop {
+                    <ConfirmDialog
+                        title={AttrValue::from("Drop table")}
+                        body={AttrValue::from(format!(
+                            "This will permanently delete `{}`.`{}` and every row inside it. This cannot be undone.",
+                            p.db, p.table
+                        ))}
+                        confirm_label={AttrValue::from("Drop table")}
+                        on_confirm={confirm_drop}
+                        on_cancel={cancel_drop}
+                        busy={self.dropping}
+                    />
+                }
+                if self.show_alter {
+                    if let LoadingState::Ready(s) = &self.state {
+                        <TableAlter
+                            db={p.db.clone()}
+                            table={p.table.clone()}
+                            structure={s.clone()}
+                            on_close={close_alter}
+                            on_changed={altered}
+                        />
+                    }
+                }
             </div>
         }
     }
