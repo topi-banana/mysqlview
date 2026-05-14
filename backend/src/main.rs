@@ -14,6 +14,7 @@ mod embedded;
 mod error;
 mod healthcheck;
 mod routes;
+mod sql_split;
 mod state;
 mod static_files;
 mod validate;
@@ -108,6 +109,8 @@ async fn shutdown_signal() {
 
 #[cfg(not(unix))]
 async fn shutdown_signal() {
-    signal::ctrl_c().await.expect("install Ctrl-C handler");
+    tokio::signal::ctrl_c()
+        .await
+        .expect("install Ctrl-C handler");
     info!("Ctrl-C received, shutting down");
 }

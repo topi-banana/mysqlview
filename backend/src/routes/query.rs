@@ -7,7 +7,8 @@ use mysqlview_types::{QueryRequest, QueryResponse};
 use sqlx::Executor;
 
 use crate::db::dynamic_row::row_to_cells;
-use crate::error::{AppError, Result};
+use crate::error::Result;
+use crate::sql_split::first_statement;
 use crate::state::AppState;
 
 pub async fn query(
@@ -23,71 +24,6 @@ pub async fn query(
         QueryKind::Affected => run_affected(&state, &sql, started).await?,
     };
     Ok(Json(response))
-}
-
-fn first_statement(raw: &str) -> Result<String> {
-    let trimmed = raw.trim();
-    if trimmed.is_empty() {
-        return Err(AppError::BadRequest("SQL is empty".into()));
-    }
-    // Naive split on `;` that respects single- and double-quoted strings and
-    // backtick-quoted identifiers, plus simple line/block comment handling.
-    let mut out = String::with_capacity(trimmed.len());
-    let mut chars = trimmed.chars().peekable();
-    let mut quote: Option<char> = None;
-    let mut in_line_comment = false;
-    let mut in_block_comment = false;
-    while let Some(c) = chars.next() {
-        if in_line_comment {
-            out.push(c);
-            if c == '\n' {
-                in_line_comment = false;
-            }
-            continue;
-        }
-        if in_block_comment {
-            out.push(c);
-            if c == '*' && matches!(chars.peek(), Some('/')) {
-                out.push(chars.next().unwrap());
-                in_block_comment = false;
-            }
-            continue;
-        }
-        if let Some(q) = quote {
-            out.push(c);
-            if c == q {
-                quote = None;
-            } else if c == '\\'
-                && let Some(next) = chars.next()
-            {
-                out.push(next);
-            }
-            continue;
-        }
-        match c {
-            '\'' | '"' | '`' => {
-                quote = Some(c);
-                out.push(c);
-            }
-            '-' if matches!(chars.peek(), Some('-')) => {
-                in_line_comment = true;
-                out.push(c);
-                out.push(chars.next().unwrap());
-            }
-            '/' if matches!(chars.peek(), Some('*')) => {
-                in_block_comment = true;
-                out.push(c);
-                out.push(chars.next().unwrap());
-            }
-            ';' => break,
-            _ => out.push(c),
-        }
-    }
-    let stmt = out.trim().to_string();
-    if stmt.is_empty() {
-        return Err(AppError::BadRequest("SQL is empty".into()));
-    }
-    Ok(stmt)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -187,42 +123,5 @@ mod tests {
         ] {
             assert_eq!(QueryKind::detect(sql), QueryKind::Affected, "{sql}");
         }
-    }
-
-    #[test]
-    fn first_statement_strips_trailing_semicolon() {
-        assert_eq!(first_statement("SELECT 1;").unwrap(), "SELECT 1");
-        assert_eq!(first_statement("  SELECT 1 ; ").unwrap(), "SELECT 1");
-    }
-
-    #[test]
-    fn first_statement_takes_only_first() {
-        assert_eq!(first_statement("SELECT 1; SELECT 2;").unwrap(), "SELECT 1");
-    }
-
-    #[test]
-    fn first_statement_respects_quotes() {
-        assert_eq!(
-            first_statement("SELECT ';' AS x; SELECT 2").unwrap(),
-            "SELECT ';' AS x"
-        );
-        assert_eq!(
-            first_statement(r#"SELECT ";" AS x; SELECT 2"#).unwrap(),
-            r#"SELECT ";" AS x"#
-        );
-    }
-
-    #[test]
-    fn first_statement_respects_line_comment() {
-        assert_eq!(
-            first_statement("SELECT 1 -- ; not a separator\nFROM t").unwrap(),
-            "SELECT 1 -- ; not a separator\nFROM t"
-        );
-    }
-
-    #[test]
-    fn first_statement_rejects_empty() {
-        assert!(first_statement("").is_err());
-        assert!(first_statement("   ;  ").is_err());
     }
 }
