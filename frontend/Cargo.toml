@@ -10,19 +10,15 @@ mysqlview-types = { workspace = true }
 yew = { workspace = true }
 yew-router = { workspace = true }
 gloo-net = { workspace = true }
-gloo-timers = { workspace = true }
-gloo-storage = { workspace = true }
 wasm-bindgen = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
 js-sys = { workspace = true }
 web-sys = { workspace = true, features = [
-    "HtmlInputElement",
-    "HtmlTextAreaElement",
-    "HtmlSelectElement",
-    "KeyboardEvent",
-    "Event",
-    "Window",
-    "Storage",
+  "HtmlInputElement",
+  "HtmlTextAreaElement",
+  "HtmlSelectElement",
+  "KeyboardEvent",
+  "Event",
 ] }
 serde = { workspace = true }
 serde_json = { workspace = true }
