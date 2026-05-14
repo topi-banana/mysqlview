@@ -1,7 +1,10 @@
+use std::collections::BTreeMap;
+
 use mysqlview_types::{
     ApiError, BrowseFilter, BrowseRequest, BrowseResponse, CellValue, ColumnInfo, DatabaseSummary,
-    ForeignKeyInfo, IndexInfo, QueryRequest, QueryResponse, SortOrder, TableStructure,
-    TableSummary,
+    DeleteRowRequest, EditAffectedResponse, ForeignKeyInfo, IndexInfo, InsertRowRequest,
+    InsertRowResponse, QueryRequest, QueryResponse, RowValues, SortOrder, TableStructure,
+    TableSummary, UpdateRowRequest,
 };
 use serde_json::json;
 
@@ -135,4 +138,53 @@ fn query_response_affected_roundtrip() {
 #[test]
 fn api_error_roundtrip() {
     roundtrip(ApiError::new("DB_ERROR", "deadlock detected").with_hint("retry the transaction"));
+}
+
+fn sample_row_values() -> RowValues {
+    let mut m: RowValues = BTreeMap::new();
+    m.insert("id".into(), CellValue::Int(42));
+    m.insert("name".into(), CellValue::String("ada".into()));
+    m.insert("note".into(), CellValue::Null);
+    m
+}
+
+#[test]
+fn insert_row_request_roundtrip() {
+    roundtrip(InsertRowRequest {
+        values: sample_row_values(),
+    });
+}
+
+#[test]
+fn insert_row_response_roundtrip() {
+    roundtrip(InsertRowResponse {
+        affected_rows: 1,
+        last_insert_id: Some(99),
+    });
+    roundtrip(InsertRowResponse {
+        affected_rows: 1,
+        last_insert_id: None,
+    });
+}
+
+#[test]
+fn update_row_request_roundtrip() {
+    let mut key: RowValues = BTreeMap::new();
+    key.insert("id".into(), CellValue::Int(1));
+    roundtrip(UpdateRowRequest {
+        key,
+        set: sample_row_values(),
+    });
+}
+
+#[test]
+fn delete_row_request_roundtrip() {
+    let mut key: RowValues = BTreeMap::new();
+    key.insert("id".into(), CellValue::Int(1));
+    roundtrip(DeleteRowRequest { key });
+}
+
+#[test]
+fn edit_affected_response_roundtrip() {
+    roundtrip(EditAffectedResponse { affected_rows: 3 });
 }
