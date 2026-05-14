@@ -13,3 +13,4 @@ pub mod nav;
 pub mod pagination;
 pub mod row_editor;
 pub mod skeleton;
+pub mod table_create;

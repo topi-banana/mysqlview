@@ -3,11 +3,13 @@ use yew::prelude::*;
 use yew_router::prelude::*;
 
 use crate::api::{self, ApiClientError};
+use crate::components::button::{Button, ButtonVariant};
 use crate::components::confirm_dialog::ConfirmDialog;
 use crate::components::empty_state::EmptyState;
 use crate::components::error_banner::ErrorBanner;
 use crate::components::input::TextInput;
 use crate::components::skeleton::Skeleton;
+use crate::components::table_create::TableCreate;
 use crate::router::Route;
 use crate::state::LoadingState;
 use crate::theme;
@@ -20,6 +22,9 @@ pub enum Msg {
     CancelDrop,
     ConfirmDrop,
     Dropped(Result<(), ApiClientError>),
+    OpenCreate,
+    CloseCreate,
+    Created(String),
 }
 
 #[derive(Properties, PartialEq)]
@@ -33,6 +38,7 @@ pub struct DatabasePage {
     show_drop: bool,
     dropping: bool,
     drop_error: Option<ApiClientError>,
+    show_create: bool,
 }
 
 impl Component for DatabasePage {
@@ -47,6 +53,7 @@ impl Component for DatabasePage {
             show_drop: false,
             dropping: false,
             drop_error: None,
+            show_create: false,
         }
     }
 
@@ -110,6 +117,24 @@ impl Component for DatabasePage {
                 self.drop_error = Some(e);
                 true
             }
+            Msg::OpenCreate => {
+                self.show_create = true;
+                true
+            }
+            Msg::CloseCreate => {
+                self.show_create = false;
+                true
+            }
+            Msg::Created(table) => {
+                self.show_create = false;
+                if let Some(nav) = ctx.link().navigator() {
+                    nav.push(&Route::Structure {
+                        db: ctx.props().db.clone(),
+                        table,
+                    });
+                }
+                true
+            }
         }
     }
 
@@ -118,6 +143,9 @@ impl Component for DatabasePage {
         let open_drop = ctx.link().callback(|_| Msg::OpenDrop);
         let cancel_drop = ctx.link().callback(|_| Msg::CancelDrop);
         let confirm_drop = ctx.link().callback(|_| Msg::ConfirmDrop);
+        let open_create = ctx.link().callback(|_| Msg::OpenCreate);
+        let close_create = ctx.link().callback(|_| Msg::CloseCreate);
+        let created = ctx.link().callback(Msg::Created);
         html! {
             <div class="space-y-6">
                 <div class="flex items-start justify-between gap-4">
@@ -125,13 +153,18 @@ impl Component for DatabasePage {
                         <div class={theme::OVERLINE}>{ "Database" }</div>
                         <h1 class={theme::SECTION_HEADING}>{ db }</h1>
                     </div>
-                    <button
-                        class={theme::BTN_DESTRUCTIVE}
-                        type="button"
-                        onclick={open_drop}
-                    >
-                        { "Drop database" }
-                    </button>
+                    <div class="flex gap-2">
+                        <Button variant={ButtonVariant::Primary} onclick={open_create}>
+                            { Html::from("New table") }
+                        </Button>
+                        <button
+                            class={theme::BTN_DESTRUCTIVE}
+                            type="button"
+                            onclick={open_drop}
+                        >
+                            { "Drop database" }
+                        </button>
+                    </div>
                 </div>
                 <TextInput
                     placeholder="Filter tables…"
@@ -152,6 +185,13 @@ impl Component for DatabasePage {
                         on_confirm={confirm_drop}
                         on_cancel={cancel_drop}
                         busy={self.dropping}
+                    />
+                }
+                if self.show_create {
+                    <TableCreate
+                        db={ctx.props().db.clone()}
+                        on_close={close_create}
+                        on_created={created}
                     />
                 }
             </div>
