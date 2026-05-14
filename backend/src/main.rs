@@ -12,6 +12,7 @@ mod db;
 #[cfg(feature = "embedded-frontend")]
 mod embedded;
 mod error;
+mod healthcheck;
 mod routes;
 mod state;
 mod static_files;
@@ -22,9 +23,14 @@ use crate::state::AppState;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let cli = Cli::parse();
+
+    if cli.healthcheck {
+        std::process::exit(if healthcheck::run(cli.port) { 0 } else { 1 });
+    }
+
     init_tracing();
 
-    let cli = Cli::parse();
     let addr: SocketAddr = format!("{}:{}", cli.bind, cli.port)
         .parse()
         .with_context(|| format!("invalid bind address {}:{}", cli.bind, cli.port))?;
@@ -38,7 +44,12 @@ async fn main() -> anyhow::Result<()> {
         );
     }
 
-    let state = AppState::new(&cli.database_url, cli.max_rows)
+    let database_url = cli
+        .database_url
+        .as_deref()
+        .context("DATABASE_URI environment variable or --database-url is required")?;
+
+    let state = AppState::new(database_url, cli.max_rows)
         .await
         .context("failed to initialize MySQL connection pool")?;
 

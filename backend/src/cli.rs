@@ -10,6 +10,12 @@ use clap::Parser;
 #[derive(Debug, Clone, Parser)]
 #[command(name = "mysqlview", version, about, long_about = None)]
 pub struct Cli {
+    /// Probe the running server (127.0.0.1:port/api/health) and exit
+    /// 0 if healthy. Used by Docker HEALTHCHECK and similar tooling.
+    /// Skips the rest of the CLI (no MySQL connection is opened).
+    #[arg(long)]
+    pub healthcheck: bool,
+
     /// IP address to bind. Default: 127.0.0.1.
     #[arg(long, default_value = "127.0.0.1", env = "MYSQLVIEW_BIND")]
     pub bind: String,
@@ -19,8 +25,9 @@ pub struct Cli {
     pub port: u16,
 
     /// MySQL connection URI, e.g. `mysql://user:pass@127.0.0.1:3306/dbname`.
+    /// Required for serving; ignored when `--healthcheck` is set.
     #[arg(long, env = "DATABASE_URI")]
-    pub database_url: String,
+    pub database_url: Option<String>,
 
     /// Directory holding the built frontend (`trunk build --release` output).
     /// When provided, the server also serves static files from this path.
