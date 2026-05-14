@@ -9,10 +9,14 @@ A local-only, OSS-quality MySQL WebUI written in Rust. Backed by [Axum](https://
 - Browse databases and tables on any MySQL server reachable via `DATABASE_URI`
 - Inspect table structure: columns, indexes, foreign keys, and the original `CREATE TABLE` statement
 - Paginated, sortable, and filterable row browsing for any table
+- Row-level editing for any table with a primary key or a NOT NULL UNIQUE index:
+  modal-based form editor supports adding, updating, and deleting rows with NULL
+  toggles per column. Tables without an identifying key surface a banner and
+  the editing UI is disabled
 - Console for executing arbitrary SQL (read or write) with results rendered as a typed data grid
 - A consistent, type-safe API thanks to a shared `mysqlview-types` crate used by both backend and frontend
 
-Editing rows, DDL operations, and import/export are explicitly **out of scope for v0.1** and are planned for future phases.
+DDL operations and import/export remain **out of scope** and are planned for future phases.
 
 ## Architecture
 
