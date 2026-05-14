@@ -259,7 +259,9 @@ fn alter_table_request_roundtrip() {
                 },
                 after: Some("id".into()),
             },
-            AlterTableOperation::DropColumn { name: "legacy".into() },
+            AlterTableOperation::DropColumn {
+                name: "legacy".into(),
+            },
             AlterTableOperation::ModifyColumn {
                 column: ColumnDefinition {
                     name: "email".into(),
@@ -274,7 +276,9 @@ fn alter_table_request_roundtrip() {
                 from: "old_name".into(),
                 to: "new_name".into(),
             },
-            AlterTableOperation::RenameTable { to: "actor_v2".into() },
+            AlterTableOperation::RenameTable {
+                to: "actor_v2".into(),
+            },
         ],
     });
 }

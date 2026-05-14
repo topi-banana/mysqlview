@@ -13,10 +13,14 @@ A local-only, OSS-quality MySQL WebUI written in Rust. Backed by [Axum](https://
   modal-based form editor supports adding, updating, and deleting rows with NULL
   toggles per column. Tables without an identifying key surface a banner and
   the editing UI is disabled
+- DDL wizards for managing schemas: `CREATE`/`DROP DATABASE` from the home and
+  database pages, plus `CREATE`/`ALTER`/`DROP TABLE` (ALTER supports
+  add/drop/modify/rename column and rename table) gated behind confirmation
+  dialogs for destructive actions
 - Console for executing arbitrary SQL (read or write) with results rendered as a typed data grid
 - A consistent, type-safe API thanks to a shared `mysqlview-types` crate used by both backend and frontend
 
-DDL operations and import/export remain **out of scope** and are planned for future phases.
+Import/export remain **out of scope** and are planned for a future phase.
 
 ## Architecture
 
@@ -29,6 +33,7 @@ mysqlview/
 
 - The backend pulls schema metadata from `information_schema` and `SHOW CREATE TABLE`.
 - The backend rejects any identifier that does not match `^[A-Za-z0-9_$]{1,64}$` and verifies existence in `information_schema` before quoting and interpolating it. All filter values use `sqlx` parameter binding.
+- DDL requests reuse the same identifier allowlist and additionally validate every column type / DEFAULT fragment against a character allowlist that rejects semicolons, backticks, comment markers, and unbalanced quotes. The exact statement the server executed is returned in the response so the UI can echo it back.
 - The frontend issues JSON-over-HTTP requests to `/api/*`. The data grid renders MySQL values via a typed `CellValue` enum (Null/Bool/Int/Float/String/Bytes/Json) so dates, decimals, and JSON columns survive a round trip without precision loss.
 
 ## Quickstart (development)
@@ -127,8 +132,8 @@ cargo fmt --all -- --check
 
 ## Future phases
 
-- Phase 2: row-level editing (INSERT/UPDATE/DELETE)
-- Phase 3: DDL wizards (CREATE/ALTER/DROP TABLE, CREATE/DROP DATABASE)
+- ~~Phase 2: row-level editing (INSERT/UPDATE/DELETE)~~ ✅ shipped
+- ~~Phase 3: DDL wizards (CREATE/ALTER/DROP TABLE, CREATE/DROP DATABASE)~~ ✅ shipped
 - Phase 4: CSV / SQL import & export
 - Phase 5: SQL editor enhancements (syntax highlighting, autocomplete), dark mode, saved queries
 

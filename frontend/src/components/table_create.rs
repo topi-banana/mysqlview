@@ -412,7 +412,11 @@ fn checkbox_value(e: &Event) -> bool {
 
 fn trim_opt(s: &str) -> Option<String> {
     let t = s.trim();
-    if t.is_empty() { None } else { Some(t.to_owned()) }
+    if t.is_empty() {
+        None
+    } else {
+        Some(t.to_owned())
+    }
 }
 
 #[derive(Properties, PartialEq)]

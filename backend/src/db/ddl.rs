@@ -359,12 +359,7 @@ mod tests {
 
     #[test]
     fn drop_database_emits_backticked_name() {
-        let sql = build_drop_database_sql(
-            "demo",
-            &DropDatabaseRequest {
-                if_exists: true,
-            },
-        );
+        let sql = build_drop_database_sql("demo", &DropDatabaseRequest { if_exists: true });
         assert_eq!(sql, "DROP DATABASE IF EXISTS `demo`");
     }
 
@@ -464,23 +459,13 @@ RENAME TO `actor_v2`"
 
     #[test]
     fn drop_table_basic() {
-        let sql = build_drop_table_sql(
-            "db",
-            "t",
-            &DropTableRequest {
-                if_exists: false,
-            },
-        );
+        let sql = build_drop_table_sql("db", "t", &DropTableRequest { if_exists: false });
         assert_eq!(sql, "DROP TABLE `db`.`t`");
     }
 
     #[test]
     fn drop_table_if_exists() {
-        let sql = build_drop_table_sql(
-            "db",
-            "t",
-            &DropTableRequest { if_exists: true },
-        );
+        let sql = build_drop_table_sql("db", "t", &DropTableRequest { if_exists: true });
         assert_eq!(sql, "DROP TABLE IF EXISTS `db`.`t`");
     }
 
@@ -546,8 +531,6 @@ RENAME TO `actor_v2`"
 
     #[test]
     fn validate_alter_table_rejects_empty_ops() {
-        assert!(
-            validate_alter_table(&AlterTableRequest { operations: vec![] }).is_err()
-        );
+        assert!(validate_alter_table(&AlterTableRequest { operations: vec![] }).is_err());
     }
 }

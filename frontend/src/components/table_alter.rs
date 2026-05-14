@@ -333,7 +333,9 @@ impl TableAlter {
     }
 
     fn view_add_form(&self, ctx: &Context<Self>) -> Html {
-        let on_after = ctx.link().callback(|e: Event| Msg::AddAfter(select_value(&e)));
+        let on_after = ctx
+            .link()
+            .callback(|e: Event| Msg::AddAfter(select_value(&e)));
         html! {
             <div class="space-y-4">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -394,7 +396,9 @@ impl TableAlter {
     }
 
     fn view_drop_form(&self, ctx: &Context<Self>) -> Html {
-        let on_change = ctx.link().callback(|e: Event| Msg::DropName(select_value(&e)));
+        let on_change = ctx
+            .link()
+            .callback(|e: Event| Msg::DropName(select_value(&e)));
         html! {
             <Labeled label="Column" hint="The column will be permanently removed.">
                 <select class={crate::theme::INPUT} onchange={on_change}>
@@ -460,7 +464,9 @@ impl TableAlter {
     }
 
     fn view_rename_column_form(&self, ctx: &Context<Self>) -> Html {
-        let on_from = ctx.link().callback(|e: Event| Msg::RenameFrom(select_value(&e)));
+        let on_from = ctx
+            .link()
+            .callback(|e: Event| Msg::RenameFrom(select_value(&e)));
         html! {
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Labeled label="From" hint="">
@@ -560,9 +566,7 @@ impl TableAlter {
                 if to.is_empty() {
                     return Err("New table name is required.".into());
                 }
-                Ok(AlterTableOperation::RenameTable {
-                    to: to.to_owned(),
-                })
+                Ok(AlterTableOperation::RenameTable { to: to.to_owned() })
             }
         }
     }
@@ -605,7 +609,11 @@ fn checkbox_value(e: &Event) -> bool {
 
 fn trim_opt(s: &str) -> Option<String> {
     let t = s.trim();
-    if t.is_empty() { None } else { Some(t.to_owned()) }
+    if t.is_empty() {
+        None
+    } else {
+        Some(t.to_owned())
+    }
 }
 
 #[derive(Properties, PartialEq)]
