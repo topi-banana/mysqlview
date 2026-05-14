@@ -1,0 +1,16 @@
+# Everything not strictly needed for the build, to keep the COPY . context
+# small and the image cache hot.
+
+/target
+/frontend/dist
+.git
+.github
+.idea
+.vscode
+*.swp
+.DS_Store
+.env
+.env.*
+README.md
+DESIGN.md
+LICENSE

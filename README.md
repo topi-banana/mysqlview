@@ -75,8 +75,24 @@ machine of the same target triple. The backend serves `/api/*` JSON
 endpoints and every other path resolves to the embedded SPA (with index.html
 as the catch-all fallback, so client-side routes survive a hard reload).
 
-CI publishes a Linux x86_64 build of this binary as the
-`mysqlview-linux-x86_64` artifact on every push to `main` and every PR.
+CI publishes two flavors of the binary on every push to `main` and every PR:
+
+- `mysqlview-linux-x86_64` — dynamically linked against glibc
+- `mysqlview-linux-x86_64-musl` — fully static (`x86_64-unknown-linux-musl`), suitable for `FROM scratch` containers
+
+## Docker (scratch image)
+
+```sh
+docker build -t mysqlview .
+docker run --rm -it \
+  -p 127.0.0.1:3000:3000 \
+  -e DATABASE_URI=mysql://root:pass@host.docker.internal:3306 \
+  mysqlview
+```
+
+The resulting image is `FROM scratch` plus the static musl binary — nothing else. Ctrl-C / `docker stop` work because the backend installs explicit SIGINT/SIGTERM handlers (Linux silently drops signals delivered to PID 1 unless a handler is installed).
+
+> Keep the host-side port mapped to `127.0.0.1` (`-p 127.0.0.1:3000:3000`). The binary still has no authentication.
 
 ### Development variant (no embedding)
 
