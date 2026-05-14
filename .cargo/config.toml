@@ -1,0 +1,13 @@
+# Cross-compile to x86_64-unknown-linux-musl for the scratch Docker image
+# and the CI `musl static build` job. ring's build.rs invokes the `cc` crate
+# which, without an explicit per-target compiler, falls back to the host
+# `gcc` and feeds it `-m64`; on rust:slim's gcc that flag is rejected by
+# cc1. Pointing both the linker and the C compiler at musl-gcc fixes the
+# build by routing everything through the musl wrapper.
+[target.x86_64-unknown-linux-musl]
+linker = "musl-gcc"
+
+[env]
+# cc-rs picks up CC_<target> automatically when targeting that triple, so
+# this is a no-op for native builds.
+CC_x86_64_unknown_linux_musl = "musl-gcc"

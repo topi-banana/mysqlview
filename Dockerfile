@@ -15,8 +15,18 @@
 # WARNING: keep the host port mapped to 127.0.0.1 — the backend has no
 # authentication and is intended for local development only.
 
+# Force every stage to linux/amd64 even when `docker build` is invoked on
+# an arm64 host (Apple Silicon). Docker uses qemu user-mode emulation
+# transparently. On native amd64 hosts (GitHub Actions ubuntu-latest, etc.)
+# this is a no-op.
+#
+# The musl-gcc wrapper that ships with Debian's musl-tools is arch-specific:
+# on arm64 it wraps aarch64-linux-gnu-gcc, which rejects `-m64` and breaks
+# every cc-rs C dep (ring, aws-lc-rs, …). Pinning the build platform keeps
+# the toolchain predictable.
+
 # ---- Stage 1: build the frontend with trunk ----
-FROM rust:1.85-slim AS frontend-builder
+FROM --platform=linux/amd64 rust:slim AS frontend-builder
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl pkg-config \
@@ -30,10 +40,10 @@ COPY . .
 RUN cd frontend && trunk build --release
 
 # ---- Stage 2: build the backend as a static musl binary ----
-FROM rust:1.85-slim AS backend-builder
+FROM --platform=linux/amd64 rust:slim AS backend-builder
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates musl-tools cmake \
+ && apt-get install -y --no-install-recommends ca-certificates musl-tools \
  && rm -rf /var/lib/apt/lists/* \
  && rustup target add x86_64-unknown-linux-musl
 
@@ -47,7 +57,7 @@ RUN cargo build --release \
     -p mysqlview-backend
 
 # ---- Stage 3: scratch image with just the static binary ----
-FROM scratch
+FROM --platform=linux/amd64 scratch
 
 # Container default: bind 0.0.0.0 so the host can reach the listener via
 # `-p`. The binary still logs a warning about non-loopback binds. Keep
