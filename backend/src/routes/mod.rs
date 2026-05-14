@@ -5,6 +5,7 @@ use crate::state::AppState;
 
 mod browse;
 mod databases;
+mod edit;
 mod health;
 mod query;
 mod structure;
@@ -20,8 +21,12 @@ pub fn router(state: AppState) -> Router {
             get(structure::structure),
         )
         .route(
-            "/api/databases/{db}/tables/{table}/rows",
+            "/api/databases/{db}/tables/{table}/browse",
             post(browse::browse),
+        )
+        .route(
+            "/api/databases/{db}/tables/{table}/rows",
+            post(edit::insert).patch(edit::update).delete(edit::delete),
         )
         .route("/api/query", post(query::query))
         .with_state(state)
