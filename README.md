@@ -57,12 +57,36 @@ Then open <http://127.0.0.1:8080>.
 
 ## Production build (single binary)
 
+Build the frontend first, then build the backend with the `embedded-frontend`
+feature so the `frontend/dist/` tree is baked into the binary by
+`include_dir!`:
+
 ```sh
-cd frontend && trunk build --release
-cargo run --release -p mysqlview-backend -- --frontend-dist ./frontend/dist
+cd frontend && trunk build --release && cd ..
+cargo build --release -p mysqlview-backend --features embedded-frontend
+
+DATABASE_URI=mysql://root:pass@127.0.0.1:3306 \
+  ./target/release/mysqlview-backend
 ```
 
-The backend will serve both `/api/*` JSON endpoints and the static frontend on the same port (default `3000`).
+The resulting `target/release/mysqlview-backend` is fully self-contained: no
+`--frontend-dist` is needed, and the binary can be copied to any other
+machine of the same target triple. The backend serves `/api/*` JSON
+endpoints and every other path resolves to the embedded SPA (with index.html
+as the catch-all fallback, so client-side routes survive a hard reload).
+
+CI publishes a Linux x86_64 build of this binary as the
+`mysqlview-linux-x86_64` artifact on every push to `main` and every PR.
+
+### Development variant (no embedding)
+
+For iteration during backend work, the default-feature build keeps the
+runtime `ServeDir` fallback and reads the dist on disk:
+
+```sh
+cd frontend && trunk build --release && cd ..
+cargo run --release -p mysqlview-backend -- --frontend-dist ./frontend/dist
+```
 
 ## CLI flags
 
