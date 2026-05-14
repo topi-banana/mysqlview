@@ -3,10 +3,10 @@ use std::collections::BTreeMap;
 use mysqlview_types::{
     AlterTableOperation, AlterTableRequest, ApiError, BrowseFilter, BrowseRequest, BrowseResponse,
     CellValue, ColumnDefinition, ColumnInfo, CreateDatabaseRequest, CreateTableRequest,
-    DatabaseSummary, DdlResponse, DeleteRowRequest, DropDatabaseRequest, DropTableRequest,
-    EditAffectedResponse, ForeignKeyInfo, IndexInfo, InsertRowRequest, InsertRowResponse,
-    QueryRequest, QueryResponse, RowValues, SortOrder, TableStructure, TableSummary,
-    UpdateRowRequest,
+    CsvImportFailure, CsvImportResponse, DatabaseSummary, DdlResponse, DeleteRowRequest,
+    DropDatabaseRequest, DropTableRequest, EditAffectedResponse, ForeignKeyInfo, IndexInfo,
+    InsertRowRequest, InsertRowResponse, QueryRequest, QueryResponse, RowValues, SortOrder,
+    SqlImportFailure, SqlImportResponse, TableStructure, TableSummary, UpdateRowRequest,
 };
 use serde_json::json;
 
@@ -292,5 +292,38 @@ fn drop_table_request_roundtrip() {
 fn ddl_response_roundtrip() {
     roundtrip(DdlResponse {
         statement: "CREATE TABLE `t` (`id` INT)".into(),
+    });
+}
+
+#[test]
+fn csv_import_response_roundtrip() {
+    roundtrip(CsvImportResponse {
+        inserted: 12,
+        failed_at: None,
+    });
+    roundtrip(CsvImportResponse {
+        inserted: 7,
+        failed_at: Some(CsvImportFailure {
+            row_index: 8,
+            message: "duplicate primary key".into(),
+        }),
+    });
+}
+
+#[test]
+fn sql_import_response_roundtrip() {
+    roundtrip(SqlImportResponse {
+        statements_run: 3,
+        total_affected_rows: 42,
+        failed_at: None,
+    });
+    roundtrip(SqlImportResponse {
+        statements_run: 1,
+        total_affected_rows: 5,
+        failed_at: Some(SqlImportFailure {
+            statement_index: 2,
+            statement_preview: "INSERT INTO `actor` (`id`) VALUES (1)".into(),
+            message: "duplicate entry for PRIMARY".into(),
+        }),
     });
 }

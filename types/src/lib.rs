@@ -7,6 +7,7 @@ pub mod browse;
 pub mod ddl;
 pub mod edit;
 pub mod error;
+pub mod import;
 pub mod query;
 pub mod schema;
 
@@ -14,5 +15,6 @@ pub use browse::*;
 pub use ddl::*;
 pub use edit::*;
 pub use error::*;
+pub use import::*;
 pub use query::*;
 pub use schema::*;
