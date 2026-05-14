@@ -8,11 +8,33 @@ use yew::prelude::*;
 use crate::components::button::{Button, ButtonVariant};
 use crate::theme;
 
+/// How a column should be rendered in the editor and how its raw string is
+/// converted between the MySQL on-wire format and the HTML form representation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FieldKind {
+    /// Single-line text input (default).
+    Text,
+    /// `<textarea>` for TEXT / JSON-style columns.
+    LongText,
+    /// Read-only display for BLOB / BIT / GEOMETRY values.
+    Bytes,
+    /// `<input type="date">` — `YYYY-MM-DD`.
+    Date,
+    /// `<input type="datetime-local" step="1">` — `YYYY-MM-DDTHH:MM:SS`.
+    /// MySQL DATETIME / TIMESTAMP values use a space between date and time;
+    /// we convert at the form boundary.
+    DateTime,
+    /// `<input type="time" step="1">` — `HH:MM:SS`.
+    Time,
+}
+
 /// Per-column draft state. We keep the user-visible text and a NULL toggle
 /// separately so we can render a stable form even when MySQL types lose their
 /// natural string representation (e.g. binary data).
 #[derive(Debug, Clone, PartialEq)]
 struct FieldDraft {
+    /// Always stored in the *form* representation (i.e. with `T` separator for
+    /// DATETIME). `collect_values` converts back to MySQL format on submit.
     text: String,
     is_null: bool,
     /// `true` for BLOB / BIT / GEOMETRY — value is shown as readonly metadata.
@@ -134,11 +156,15 @@ impl RowEditor {
                 }
                 continue;
             }
+            let kind = classify_column(col);
             // Auto-increment / DEFAULT-handled columns: skip if blank on insert.
             if p.is_insert && is_auto_increment(col) && draft.text.trim().is_empty() {
                 continue;
             }
-            out.insert(col.name.clone(), CellValue::String(draft.text.clone()));
+            out.insert(
+                col.name.clone(),
+                CellValue::String(input_to_mysql(kind, &draft.text)),
+            );
         }
         out
     }
@@ -149,6 +175,7 @@ impl RowEditor {
             .get(&col.name)
             .cloned()
             .unwrap_or_else(|| empty_draft(col, false));
+        let kind = classify_column(col);
         let col_name = col.name.clone();
         let null_col = col.name.clone();
         let on_input_link = ctx.link().clone();
@@ -186,14 +213,13 @@ impl RowEditor {
             </div>
         };
 
-        let body = if draft.readonly_bytes {
-            html! {
+        let body = match kind {
+            FieldKind::Bytes => html! {
                 <div class="px-3 py-2 text-xs text-text-secondary bg-background/60 border border-border rounded-[6px] font-mono">
                     { "Binary data — editing not supported in this view." }
                 </div>
-            }
-        } else if is_long_text(col) {
-            html! {
+            },
+            FieldKind::LongText => html! {
                 <textarea
                     class={format!("{} font-mono leading-relaxed", theme::INPUT)}
                     rows="3"
@@ -202,9 +228,11 @@ impl RowEditor {
                     value={draft.text.clone()}
                     oninput={on_input}
                 />
+            },
+            FieldKind::Date | FieldKind::DateTime | FieldKind::Time => {
+                self.view_temporal(ctx, col, kind, &draft, on_input)
             }
-        } else {
-            html! {
+            FieldKind::Text => html! {
                 <input
                     class={theme::INPUT}
                     type="text"
@@ -213,13 +241,66 @@ impl RowEditor {
                     value={draft.text.clone()}
                     oninput={on_input}
                 />
-            }
+            },
         };
 
         html! {
             <div class="space-y-1.5">
                 { header }
                 { body }
+            </div>
+        }
+    }
+
+    fn view_temporal(
+        &self,
+        ctx: &Context<Self>,
+        col: &ColumnInfo,
+        kind: FieldKind,
+        draft: &FieldDraft,
+        on_input: Callback<InputEvent>,
+    ) -> Html {
+        let input_type = match kind {
+            FieldKind::Date => "date",
+            FieldKind::DateTime => "datetime-local",
+            FieldKind::Time => "time",
+            _ => "text",
+        };
+        // step="1" enables seconds precision; "any" allows sub-second too.
+        let step = match kind {
+            FieldKind::Date => None,
+            FieldKind::Time | FieldKind::DateTime => Some(AttrValue::from("1")),
+            _ => None,
+        };
+        let col_name = col.name.clone();
+        let on_now = ctx.link().callback(move |_e: MouseEvent| {
+            Msg::SetText(col_name.clone(), current_local(kind).unwrap_or_default())
+        });
+        let now_label = match kind {
+            FieldKind::Date => "Today",
+            _ => "Now",
+        };
+
+        html! {
+            <div class="flex gap-2 items-stretch">
+                <input
+                    class={format!("{} flex-1", theme::INPUT)}
+                    type={input_type}
+                    step={step.unwrap_or_default()}
+                    placeholder={placeholder_for(col, ctx.props().is_insert)}
+                    disabled={draft.is_null}
+                    value={draft.text.clone()}
+                    oninput={on_input}
+                />
+                <button
+                    type="button"
+                    class={theme::BTN_QUICK}
+                    disabled={draft.is_null}
+                    onclick={on_now}
+                    title={AttrValue::from("Insert current local time")}
+                >
+                    { now_label }
+                </button>
             </div>
         }
     }
@@ -235,7 +316,7 @@ fn build_initial_fields(
         let current = initial.get(&col.name);
         let mut draft = empty_draft(col, is_insert);
         if let Some(value) = current {
-            apply_value(&mut draft, value);
+            apply_value(&mut draft, classify_column(col), value);
         }
         out.insert(col.name.clone(), draft);
     }
@@ -243,7 +324,7 @@ fn build_initial_fields(
 }
 
 fn empty_draft(col: &ColumnInfo, is_insert: bool) -> FieldDraft {
-    let readonly_bytes = is_bytes_column(col);
+    let readonly_bytes = matches!(classify_column(col), FieldKind::Bytes);
     let is_null = if is_insert {
         col.nullable && !readonly_bytes && !is_auto_increment(col)
     } else {
@@ -257,7 +338,7 @@ fn empty_draft(col: &ColumnInfo, is_insert: bool) -> FieldDraft {
     }
 }
 
-fn apply_value(draft: &mut FieldDraft, value: &CellValue) {
+fn apply_value(draft: &mut FieldDraft, kind: FieldKind, value: &CellValue) {
     match value {
         CellValue::Null => {
             draft.is_null = true;
@@ -277,7 +358,7 @@ fn apply_value(draft: &mut FieldDraft, value: &CellValue) {
         }
         CellValue::String(s) => {
             draft.is_null = false;
-            draft.text = s.clone();
+            draft.text = mysql_to_input(kind, s);
         }
         CellValue::Bytes { base64 } => {
             draft.is_null = false;
@@ -291,31 +372,21 @@ fn apply_value(draft: &mut FieldDraft, value: &CellValue) {
     }
 }
 
-fn is_bytes_column(col: &ColumnInfo) -> bool {
+fn classify_column(col: &ColumnInfo) -> FieldKind {
     let lower = col.data_type.to_ascii_lowercase();
-    [
-        "blob",
-        "tinyblob",
-        "mediumblob",
-        "longblob",
-        "binary",
-        "varbinary",
-        "bit",
-        "geometry",
-        "point",
-        "linestring",
-        "polygon",
-    ]
-    .iter()
-    .any(|kw| lower.starts_with(kw))
-}
-
-fn is_long_text(col: &ColumnInfo) -> bool {
-    let lower = col.data_type.to_ascii_lowercase();
-    lower.starts_with("json")
-        || lower.starts_with("text")
-        || lower.starts_with("mediumtext")
-        || lower.starts_with("longtext")
+    let base = lower
+        .split(|c: char| c == '(' || c.is_whitespace())
+        .next()
+        .unwrap_or(&lower);
+    match base {
+        "blob" | "tinyblob" | "mediumblob" | "longblob" | "binary" | "varbinary" | "bit"
+        | "geometry" | "point" | "linestring" | "polygon" => FieldKind::Bytes,
+        "date" => FieldKind::Date,
+        "datetime" | "timestamp" => FieldKind::DateTime,
+        "time" => FieldKind::Time,
+        "json" | "text" | "tinytext" | "mediumtext" | "longtext" => FieldKind::LongText,
+        _ => FieldKind::Text,
+    }
 }
 
 fn is_auto_increment(col: &ColumnInfo) -> bool {
@@ -330,6 +401,43 @@ fn placeholder_for(col: &ColumnInfo, is_insert: bool) -> AttrValue {
         return AttrValue::from("(auto)");
     }
     AttrValue::from(col.data_type.clone())
+}
+
+/// MySQL on-wire string → HTML form representation.
+///
+/// DATETIME / TIMESTAMP values come in as `YYYY-MM-DD HH:MM:SS[.fff…]`. The
+/// `datetime-local` input requires a `T` separator. Other kinds pass through.
+fn mysql_to_input(kind: FieldKind, value: &str) -> String {
+    match kind {
+        FieldKind::DateTime => value.replacen(' ', "T", 1),
+        _ => value.to_owned(),
+    }
+}
+
+/// HTML form representation → MySQL on-wire string.
+fn input_to_mysql(kind: FieldKind, value: &str) -> String {
+    match kind {
+        FieldKind::DateTime => value.replacen('T', " ", 1),
+        _ => value.to_owned(),
+    }
+}
+
+/// Returns the current local time formatted for the given input kind. None for
+/// kinds that have no natural "now" representation.
+fn current_local(kind: FieldKind) -> Option<String> {
+    let d = js_sys::Date::new_0();
+    let y = d.get_full_year();
+    let mo = d.get_month() + 1;
+    let dy = d.get_date();
+    let h = d.get_hours();
+    let mi = d.get_minutes();
+    let se = d.get_seconds();
+    Some(match kind {
+        FieldKind::Date => format!("{y:04}-{mo:02}-{dy:02}"),
+        FieldKind::Time => format!("{h:02}:{mi:02}:{se:02}"),
+        FieldKind::DateTime => format!("{y:04}-{mo:02}-{dy:02}T{h:02}:{mi:02}:{se:02}"),
+        _ => return None,
+    })
 }
 
 fn target_value(e: &InputEvent) -> String {

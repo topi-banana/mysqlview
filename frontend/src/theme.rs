@@ -21,6 +21,12 @@ pub const BTN_DESTRUCTIVE: &str = "inline-flex items-center justify-center px-4 
      hover:-translate-y-px disabled:opacity-50 disabled:cursor-not-allowed \
      disabled:hover:translate-y-0";
 
+/// Compact secondary button used as an adjunct to an input (e.g. "Now").
+/// Matches the input height (`py-2.5`) so it lines up flush.
+pub const BTN_QUICK: &str = "inline-flex items-center justify-center px-3 py-2 rounded-[6px] border border-border \
+     bg-surface text-sm font-medium text-text-secondary hover:text-text hover:border-text-secondary \
+     transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap";
+
 pub const CARD: &str = "block bg-surface border border-border rounded-[12px] overflow-hidden \
      transition-all duration-200 hover:-translate-y-0.5 \
      hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)]";
