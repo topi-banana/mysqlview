@@ -10,6 +10,8 @@ use tracing_subscriber::EnvFilter;
 mod cli;
 mod cors;
 mod db;
+#[cfg(feature = "embedded-frontend")]
+mod embedded;
 mod error;
 mod routes;
 mod state;
