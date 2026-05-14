@@ -1,0 +1,10 @@
+[package]
+name = "mysqlview-types"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Shared DTOs between mysqlview frontend and backend"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
