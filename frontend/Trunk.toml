@@ -4,3 +4,9 @@ port = 8080
 
 [build]
 target = "index.html"
+
+[tools]
+# Pin the tailwindcss CLI to a v4 release. Trunk defaults to 3.3.5,
+# which cannot parse the v4 `@theme {}` / `@import "tailwindcss"`
+# syntax in style.css.
+tailwindcss = "4.2.2"
