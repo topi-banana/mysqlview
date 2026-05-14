@@ -16,6 +16,11 @@ pub const BTN_SECONDARY: &str = "inline-flex items-center justify-center px-4 py
 pub const BTN_GHOST: &str = "inline-flex items-center justify-center px-3 py-1.5 rounded-[6px] text-text-secondary \
      font-medium text-sm hover:text-text transition-colors";
 
+pub const BTN_DESTRUCTIVE: &str = "inline-flex items-center justify-center px-4 py-2 rounded-[6px] border border-error/40 \
+     bg-surface text-error font-medium text-sm hover:bg-error/5 transition-all duration-150 \
+     hover:-translate-y-px disabled:opacity-50 disabled:cursor-not-allowed \
+     disabled:hover:translate-y-0";
+
 pub const CARD: &str = "block bg-surface border border-border rounded-[12px] overflow-hidden \
      transition-all duration-200 hover:-translate-y-0.5 \
      hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)]";

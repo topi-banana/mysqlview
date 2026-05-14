@@ -9,6 +9,10 @@ pub struct Props {
     pub on_sort: Callback<String>,
     #[prop_or_default]
     pub sort_column: Option<String>,
+    #[prop_or_default]
+    pub on_edit_row: Option<Callback<usize>>,
+    #[prop_or_default]
+    pub on_delete_row: Option<Callback<usize>>,
 }
 
 pub struct DataGrid;
@@ -23,6 +27,7 @@ impl Component for DataGrid {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let p = ctx.props();
+        let actions = p.on_edit_row.is_some() || p.on_delete_row.is_some();
         if p.columns.is_empty() {
             return html! {
                 <div class="bg-surface border border-border rounded-[12px] p-8 text-center text-text-secondary">
@@ -30,6 +35,7 @@ impl Component for DataGrid {
                 </div>
             };
         }
+        let total_cols = p.columns.len() + usize::from(actions);
         html! {
             <div class="bg-surface border border-border rounded-[12px] overflow-hidden">
                 <div class="overflow-x-auto max-h-[600px]">
@@ -37,11 +43,14 @@ impl Component for DataGrid {
                         <thead class="sticky top-0 bg-surface border-b border-border z-10">
                             <tr>
                                 { for p.columns.iter().enumerate().map(|(idx, col)| self.view_th(ctx, idx, col)) }
+                                if actions {
+                                    <th class="text-right px-4 py-3 font-display font-semibold text-[13px] whitespace-nowrap"></th>
+                                }
                             </tr>
                         </thead>
                         <tbody>
-                            { for p.rows.iter().map(|row| self.view_row(row, p.columns.len())) }
-                            { if p.rows.is_empty() { self.view_empty(p.columns.len()) } else { Html::default() } }
+                            { for p.rows.iter().enumerate().map(|(idx, row)| self.view_row(ctx, idx, row)) }
+                            { if p.rows.is_empty() { self.view_empty(total_cols) } else { Html::default() } }
                         </tbody>
                     </table>
                 </div>
@@ -68,10 +77,51 @@ impl DataGrid {
         }
     }
 
-    fn view_row(&self, row: &[CellValue], _cols: usize) -> Html {
+    fn view_row(&self, ctx: &Context<Self>, idx: usize, row: &[CellValue]) -> Html {
+        let p = ctx.props();
+        let edit_cell = p.on_edit_row.as_ref().map(|cb| {
+            let cb = cb.clone();
+            let onclick = Callback::from(move |_| cb.emit(idx));
+            html! {
+                <button
+                    type="button"
+                    class="text-primary text-[13px] font-medium hover:underline"
+                    onclick={onclick}
+                >
+                    { "Edit" }
+                </button>
+            }
+        });
+        let delete_cell = p.on_delete_row.as_ref().map(|cb| {
+            let cb = cb.clone();
+            let onclick = Callback::from(move |_| cb.emit(idx));
+            html! {
+                <button
+                    type="button"
+                    class="text-error text-[13px] font-medium hover:underline"
+                    onclick={onclick}
+                >
+                    { "Delete" }
+                </button>
+            }
+        });
+        let actions = if edit_cell.is_some() || delete_cell.is_some() {
+            html! {
+                <td class="px-4 py-2.5 text-right whitespace-nowrap">
+                    <div class="flex justify-end gap-3">
+                        { edit_cell.unwrap_or_default() }
+                        { delete_cell.unwrap_or_default() }
+                    </div>
+                </td>
+            }
+        } else {
+            Html::default()
+        };
+
         html! {
             <tr class="border-b border-border last:border-b-0 hover:bg-background/60">
                 { for row.iter().map(view_cell) }
+                { actions }
             </tr>
         }
     }
