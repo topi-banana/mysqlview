@@ -1,0 +1,64 @@
+[workspace]
+resolver = "3"
+members = ["backend", "frontend", "types"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[workspace.dependencies]
+mysqlview-types = { path = "types" }
+
+axum = { version = "0.8.9", default-features = false, features = [
+    "http1",
+    "json",
+    "tokio",
+    "macros",
+] }
+tokio = { version = "1.52.3", features = [
+    "rt-multi-thread",
+    "macros",
+    "signal",
+    "net",
+] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace", "fs"] }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio-rustls",
+    "mysql",
+    "macros",
+    "json",
+    "chrono",
+    "rust_decimal",
+] }
+rust_decimal = { version = "1.36", features = ["serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+clap = { version = "4", features = ["derive", "env"] }
+anyhow = "1"
+
+yew = { version = "0.23.0", features = ["csr"] }
+yew-router = "0.20"
+gloo-net = { version = "0.6", features = ["http"] }
+gloo-timers = { version = "0.3", features = ["futures"] }
+gloo-storage = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = "0.3"
+console_error_panic_hook = "0.1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
