@@ -1,7 +1,8 @@
 use gloo_net::http::Request;
 use mysqlview_types::{
-    ApiError, BrowseRequest, BrowseResponse, DatabaseSummary, QueryRequest, QueryResponse,
-    TableStructure, TableSummary,
+    ApiError, BrowseRequest, BrowseResponse, DatabaseSummary, DeleteRowRequest,
+    EditAffectedResponse, InsertRowRequest, InsertRowResponse, QueryRequest, QueryResponse,
+    TableStructure, TableSummary, UpdateRowRequest,
 };
 use serde::de::DeserializeOwned;
 
@@ -87,7 +88,7 @@ pub async fn browse_rows(
     request: &BrowseRequest,
 ) -> Result<BrowseResponse, ApiClientError> {
     let resp = Request::post(&format!(
-        "/api/databases/{}/tables/{}/rows",
+        "/api/databases/{}/tables/{}/browse",
         urlencode(db),
         urlencode(table),
     ))
@@ -96,6 +97,56 @@ pub async fn browse_rows(
     .send()
     .await
     .map_err(|e| ApiClientError::Network(e.to_string()))?;
+    handle(resp).await
+}
+
+fn rows_url(db: &str, table: &str) -> String {
+    format!(
+        "/api/databases/{}/tables/{}/rows",
+        urlencode(db),
+        urlencode(table),
+    )
+}
+
+pub async fn insert_row(
+    db: &str,
+    table: &str,
+    request: &InsertRowRequest,
+) -> Result<InsertRowResponse, ApiClientError> {
+    let resp = Request::post(&rows_url(db, table))
+        .json(request)
+        .map_err(|e| ApiClientError::Network(e.to_string()))?
+        .send()
+        .await
+        .map_err(|e| ApiClientError::Network(e.to_string()))?;
+    handle(resp).await
+}
+
+pub async fn update_row(
+    db: &str,
+    table: &str,
+    request: &UpdateRowRequest,
+) -> Result<EditAffectedResponse, ApiClientError> {
+    let resp = Request::patch(&rows_url(db, table))
+        .json(request)
+        .map_err(|e| ApiClientError::Network(e.to_string()))?
+        .send()
+        .await
+        .map_err(|e| ApiClientError::Network(e.to_string()))?;
+    handle(resp).await
+}
+
+pub async fn delete_row(
+    db: &str,
+    table: &str,
+    request: &DeleteRowRequest,
+) -> Result<EditAffectedResponse, ApiClientError> {
+    let resp = Request::delete(&rows_url(db, table))
+        .json(request)
+        .map_err(|e| ApiClientError::Network(e.to_string()))?
+        .send()
+        .await
+        .map_err(|e| ApiClientError::Network(e.to_string()))?;
     handle(resp).await
 }
 
