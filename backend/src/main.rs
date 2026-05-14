@@ -3,7 +3,6 @@ use std::net::SocketAddr;
 use anyhow::Context;
 use clap::Parser;
 use tokio::net::TcpListener;
-use tokio::signal;
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 
@@ -76,27 +75,28 @@ fn is_loopback(addr: &SocketAddr) -> bool {
     addr.ip().is_loopback()
 }
 
+/// Wait until the process is asked to shut down.
+///
+/// When the binary runs as PID 1 inside a scratch container the Linux
+/// kernel drops every signal that has no userspace handler installed, so
+/// Ctrl-C and `docker stop` would otherwise hang. The explicit
+/// `signal()` calls below register handlers for both SIGINT and SIGTERM
+/// so either path terminates the process cleanly.
+#[cfg(unix)]
 async fn shutdown_signal() {
-    let ctrl_c = async {
-        signal::ctrl_c()
-            .await
-            .expect("failed to install Ctrl-C handler");
-    };
+    use tokio::signal::unix::{SignalKind, signal};
 
-    #[cfg(unix)]
-    let terminate = async {
-        signal::unix::signal(signal::unix::SignalKind::terminate())
-            .expect("failed to install SIGTERM handler")
-            .recv()
-            .await;
-    };
-
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
+    let mut sigint = signal(SignalKind::interrupt()).expect("install SIGINT handler");
+    let mut sigterm = signal(SignalKind::terminate()).expect("install SIGTERM handler");
 
     tokio::select! {
-        _ = ctrl_c => {}
-        _ = terminate => {}
+        _ = sigint.recv() => info!("SIGINT received, shutting down"),
+        _ = sigterm.recv() => info!("SIGTERM received, shutting down"),
     }
-    info!("shutdown signal received");
+}
+
+#[cfg(not(unix))]
+async fn shutdown_signal() {
+    signal::ctrl_c().await.expect("install Ctrl-C handler");
+    info!("Ctrl-C received, shutting down");
 }
