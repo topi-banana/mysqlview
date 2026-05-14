@@ -385,6 +385,7 @@ fn classify_column(col: &ColumnInfo) -> FieldKind {
         "datetime" | "timestamp" => FieldKind::DateTime,
         "time" => FieldKind::Time,
         "json" | "text" | "tinytext" | "mediumtext" | "longtext" => FieldKind::LongText,
+        "char" | "varchar" | "enum" | "set" => FieldKind::Text,
         _ => FieldKind::Text,
     }
 }
