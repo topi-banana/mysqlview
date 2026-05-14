@@ -3,7 +3,9 @@ use yew::prelude::*;
 use yew_router::prelude::*;
 
 use crate::api::{self, ApiClientError};
+use crate::components::button::{Button, ButtonVariant};
 use crate::components::card::Card;
+use crate::components::database_create::DatabaseCreate;
 use crate::components::empty_state::EmptyState;
 use crate::components::error_banner::ErrorBanner;
 use crate::components::skeleton::Skeleton;
@@ -14,10 +16,14 @@ use crate::theme;
 pub enum Msg {
     Fetch,
     Loaded(Result<Vec<DatabaseSummary>, ApiClientError>),
+    OpenCreate,
+    CloseCreate,
+    Created,
 }
 
 pub struct HomePage {
     state: LoadingState<Vec<DatabaseSummary>>,
+    show_create: bool,
 }
 
 impl Component for HomePage {
@@ -28,6 +34,7 @@ impl Component for HomePage {
         ctx.link().send_message(Msg::Fetch);
         Self {
             state: LoadingState::Loading,
+            show_create: false,
         }
     }
 
@@ -47,19 +54,43 @@ impl Component for HomePage {
                 self.state = LoadingState::Failed(e);
                 true
             }
+            Msg::OpenCreate => {
+                self.show_create = true;
+                true
+            }
+            Msg::CloseCreate => {
+                self.show_create = false;
+                true
+            }
+            Msg::Created => {
+                self.show_create = false;
+                ctx.link().send_message(Msg::Fetch);
+                true
+            }
         }
     }
 
-    fn view(&self, _ctx: &Context<Self>) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let open = ctx.link().callback(|_| Msg::OpenCreate);
+        let close = ctx.link().callback(|_| Msg::CloseCreate);
+        let created = ctx.link().callback(|_| Msg::Created);
         html! {
             <div class="space-y-6">
-                <div class="space-y-2">
-                    <h1 class={theme::SECTION_HEADING}>{ "Databases" }</h1>
-                    <p class="text-text-secondary text-sm">
-                        { "Schemas available on the connected MySQL server." }
-                    </p>
+                <div class="flex items-start justify-between gap-4">
+                    <div class="space-y-2">
+                        <h1 class={theme::SECTION_HEADING}>{ "Databases" }</h1>
+                        <p class="text-text-secondary text-sm">
+                            { "Schemas available on the connected MySQL server." }
+                        </p>
+                    </div>
+                    <Button variant={ButtonVariant::Primary} onclick={open}>
+                        { Html::from("New database") }
+                    </Button>
                 </div>
                 { self.view_body() }
+                if self.show_create {
+                    <DatabaseCreate on_close={close} on_created={created} />
+                }
             </div>
         }
     }

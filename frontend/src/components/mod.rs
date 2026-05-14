@@ -4,6 +4,7 @@ pub mod chip;
 pub mod code_editor;
 pub mod confirm_dialog;
 pub mod data_grid;
+pub mod database_create;
 pub mod empty_state;
 pub mod error_banner;
 pub mod input;

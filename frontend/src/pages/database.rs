@@ -1,8 +1,9 @@
-use mysqlview_types::TableSummary;
+use mysqlview_types::{DropDatabaseRequest, TableSummary};
 use yew::prelude::*;
 use yew_router::prelude::*;
 
 use crate::api::{self, ApiClientError};
+use crate::components::confirm_dialog::ConfirmDialog;
 use crate::components::empty_state::EmptyState;
 use crate::components::error_banner::ErrorBanner;
 use crate::components::input::TextInput;
@@ -15,6 +16,10 @@ pub enum Msg {
     Fetch,
     Loaded(Result<Vec<TableSummary>, ApiClientError>),
     Filter(String),
+    OpenDrop,
+    CancelDrop,
+    ConfirmDrop,
+    Dropped(Result<(), ApiClientError>),
 }
 
 #[derive(Properties, PartialEq)]
@@ -25,6 +30,9 @@ pub struct Props {
 pub struct DatabasePage {
     state: LoadingState<Vec<TableSummary>>,
     filter: String,
+    show_drop: bool,
+    dropping: bool,
+    drop_error: Option<ApiClientError>,
 }
 
 impl Component for DatabasePage {
@@ -36,6 +44,9 @@ impl Component for DatabasePage {
         Self {
             state: LoadingState::Loading,
             filter: String::new(),
+            show_drop: false,
+            dropping: false,
+            drop_error: None,
         }
     }
 
@@ -65,16 +76,62 @@ impl Component for DatabasePage {
                 self.filter = s;
                 true
             }
+            Msg::OpenDrop => {
+                self.show_drop = true;
+                self.drop_error = None;
+                true
+            }
+            Msg::CancelDrop => {
+                if self.dropping {
+                    return false;
+                }
+                self.show_drop = false;
+                true
+            }
+            Msg::ConfirmDrop => {
+                self.dropping = true;
+                let db = ctx.props().db.clone();
+                ctx.link().send_future(async move {
+                    let req = DropDatabaseRequest { if_exists: false };
+                    Msg::Dropped(api::drop_database(&db, &req).await.map(|_| ()))
+                });
+                true
+            }
+            Msg::Dropped(Ok(())) => {
+                self.dropping = false;
+                self.show_drop = false;
+                if let Some(nav) = ctx.link().navigator() {
+                    nav.push(&Route::Home);
+                }
+                true
+            }
+            Msg::Dropped(Err(e)) => {
+                self.dropping = false;
+                self.drop_error = Some(e);
+                true
+            }
         }
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let db = &ctx.props().db;
+        let open_drop = ctx.link().callback(|_| Msg::OpenDrop);
+        let cancel_drop = ctx.link().callback(|_| Msg::CancelDrop);
+        let confirm_drop = ctx.link().callback(|_| Msg::ConfirmDrop);
         html! {
             <div class="space-y-6">
-                <div class="space-y-2">
-                    <div class={theme::OVERLINE}>{ "Database" }</div>
-                    <h1 class={theme::SECTION_HEADING}>{ db }</h1>
+                <div class="flex items-start justify-between gap-4">
+                    <div class="space-y-2">
+                        <div class={theme::OVERLINE}>{ "Database" }</div>
+                        <h1 class={theme::SECTION_HEADING}>{ db }</h1>
+                    </div>
+                    <button
+                        class={theme::BTN_DESTRUCTIVE}
+                        type="button"
+                        onclick={open_drop}
+                    >
+                        { "Drop database" }
+                    </button>
                 </div>
                 <TextInput
                     placeholder="Filter tables…"
@@ -82,6 +139,21 @@ impl Component for DatabasePage {
                     oninput={ctx.link().callback(Msg::Filter)}
                 />
                 { self.view_body(ctx) }
+                if let Some(e) = &self.drop_error {
+                    <ErrorBanner error={e.clone()} />
+                }
+                if self.show_drop {
+                    <ConfirmDialog
+                        title={AttrValue::from("Drop database")}
+                        body={AttrValue::from(format!(
+                            "This will permanently delete `{db}` and every table inside it. This cannot be undone."
+                        ))}
+                        confirm_label={AttrValue::from("Drop database")}
+                        on_confirm={confirm_drop}
+                        on_cancel={cancel_drop}
+                        busy={self.dropping}
+                    />
+                }
             </div>
         }
     }
