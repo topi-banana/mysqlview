@@ -1,10 +1,12 @@
 use std::collections::BTreeMap;
 
 use mysqlview_types::{
-    ApiError, BrowseFilter, BrowseRequest, BrowseResponse, CellValue, ColumnInfo, DatabaseSummary,
-    DeleteRowRequest, EditAffectedResponse, ForeignKeyInfo, IndexInfo, InsertRowRequest,
-    InsertRowResponse, QueryRequest, QueryResponse, RowValues, SortOrder, TableStructure,
-    TableSummary, UpdateRowRequest,
+    AlterTableOperation, AlterTableRequest, ApiError, BrowseFilter, BrowseRequest, BrowseResponse,
+    CellValue, ColumnDefinition, ColumnInfo, CreateDatabaseRequest, CreateTableRequest,
+    DatabaseSummary, DdlResponse, DeleteRowRequest, DropDatabaseRequest, DropTableRequest,
+    EditAffectedResponse, ForeignKeyInfo, IndexInfo, InsertRowRequest, InsertRowResponse,
+    QueryRequest, QueryResponse, RowValues, SortOrder, TableStructure, TableSummary,
+    UpdateRowRequest,
 };
 use serde_json::json;
 
@@ -187,4 +189,104 @@ fn delete_row_request_roundtrip() {
 #[test]
 fn edit_affected_response_roundtrip() {
     roundtrip(EditAffectedResponse { affected_rows: 3 });
+}
+
+#[test]
+fn create_database_request_roundtrip() {
+    roundtrip(CreateDatabaseRequest {
+        name: "demo".into(),
+        charset: Some("utf8mb4".into()),
+        collation: Some("utf8mb4_0900_ai_ci".into()),
+        if_not_exists: true,
+    });
+    roundtrip(CreateDatabaseRequest {
+        name: "minimal".into(),
+        charset: None,
+        collation: None,
+        if_not_exists: false,
+    });
+}
+
+#[test]
+fn drop_database_request_roundtrip() {
+    roundtrip(DropDatabaseRequest { if_exists: true });
+    roundtrip(DropDatabaseRequest { if_exists: false });
+}
+
+#[test]
+fn create_table_request_roundtrip() {
+    roundtrip(CreateTableRequest {
+        name: "actor".into(),
+        columns: vec![
+            ColumnDefinition {
+                name: "id".into(),
+                data_type: "INT UNSIGNED".into(),
+                nullable: false,
+                default: None,
+                auto_increment: true,
+                comment: None,
+            },
+            ColumnDefinition {
+                name: "name".into(),
+                data_type: "VARCHAR(64)".into(),
+                nullable: true,
+                default: Some("''".into()),
+                auto_increment: false,
+                comment: Some("display name".into()),
+            },
+        ],
+        primary_key: vec!["id".into()],
+        engine: Some("InnoDB".into()),
+        charset: Some("utf8mb4".into()),
+        collation: None,
+        comment: Some("primary table".into()),
+        if_not_exists: false,
+    });
+}
+
+#[test]
+fn alter_table_request_roundtrip() {
+    roundtrip(AlterTableRequest {
+        operations: vec![
+            AlterTableOperation::AddColumn {
+                column: ColumnDefinition {
+                    name: "added_at".into(),
+                    data_type: "DATETIME".into(),
+                    nullable: false,
+                    default: Some("CURRENT_TIMESTAMP".into()),
+                    auto_increment: false,
+                    comment: None,
+                },
+                after: Some("id".into()),
+            },
+            AlterTableOperation::DropColumn { name: "legacy".into() },
+            AlterTableOperation::ModifyColumn {
+                column: ColumnDefinition {
+                    name: "email".into(),
+                    data_type: "VARCHAR(255)".into(),
+                    nullable: true,
+                    default: None,
+                    auto_increment: false,
+                    comment: None,
+                },
+            },
+            AlterTableOperation::RenameColumn {
+                from: "old_name".into(),
+                to: "new_name".into(),
+            },
+            AlterTableOperation::RenameTable { to: "actor_v2".into() },
+        ],
+    });
+}
+
+#[test]
+fn drop_table_request_roundtrip() {
+    roundtrip(DropTableRequest { if_exists: true });
+}
+
+#[test]
+fn ddl_response_roundtrip() {
+    roundtrip(DdlResponse {
+        statement: "CREATE TABLE `t` (`id` INT)".into(),
+    });
 }
