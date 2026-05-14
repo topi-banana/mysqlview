@@ -65,8 +65,27 @@ jobs:
         run: cargo clippy -p mysqlview-frontend --target wasm32-unknown-unknown -- -D warnings
 
   release-build:
-    name: release build
-    runs-on: ubuntu-latest
+    name: release build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: mysqlview-linux-x86_64
+            binary: mysqlview-backend
+          - os: ubuntu-24.04-arm
+            artifact: mysqlview-linux-aarch64
+            binary: mysqlview-backend
+          - os: windows-latest
+            artifact: mysqlview-windows-x86_64
+            binary: mysqlview-backend.exe
+          - os: windows-11-arm
+            artifact: mysqlview-windows-aarch64
+            binary: mysqlview-backend.exe
+          - os: macos-latest
+            artifact: mysqlview-macos-aarch64
+            binary: mysqlview-backend
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
@@ -74,10 +93,10 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
         with:
-          key: release-build
-      - uses: jetli/trunk-action@v0.5.1
+          key: release-build-${{ matrix.os }}
+      - uses: taiki-e/install-action@v2
         with:
-          version: latest
+          tool: trunk
       - name: Build frontend (release)
         working-directory: frontend
         run: trunk build --release
@@ -88,8 +107,8 @@ jobs:
       - name: Upload single-binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mysqlview-linux-x86_64
-          path: target/release/mysqlview-backend
+          name: ${{ matrix.artifact }}
+          path: target/release/${{ matrix.binary }}
           if-no-files-found: error
 
   musl-build:
