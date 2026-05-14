@@ -75,7 +75,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: release-build
-      - uses: jetli/trunk-action@v0.5.0
+      - uses: jetli/trunk-action@v0.5.1
         with:
           version: latest
       - name: Build types + backend (release)
