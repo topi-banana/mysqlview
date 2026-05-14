@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+/* Tailwind v4 does not scan .rs files by default. Tell it explicitly where
+   our Yew components and templates live so the JIT can emit the utilities
+   they reference. */
+@source "./src/**/*.rs";
+@source "./index.html";
+
+@theme {
+    --color-primary: #6366f1;
+    --color-primary-hover: #4f46e5;
+    --color-secondary: #20970b;
+    --color-neutral: #9c9c9c;
+    --color-background: #fafafa;
+    --color-surface: #ffffff;
+    --color-text: #0a0a0a;
+    --color-text-secondary: #6b6b6b;
+    --color-border: #e8e8ec;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-error: #ef4444;
+
+    --font-display: "General Sans", system-ui, sans-serif;
+    --font-body: "DM Sans", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", monospace;
+
+    --radius-card: 12px;
+    --radius-button: 6px;
+    --radius-chip: 4px;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    background: var(--color-background);
+    color: var(--color-text);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.03em;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+code,
+pre,
+.font-mono {
+    font-family: var(--font-mono);
+}
+
+/* Custom scrollbar tuned for the editorial-precision aesthetic. */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--color-neutral);
+}
