@@ -1,10 +1,11 @@
 use axum::Router;
-use axum::routing::{get, post};
+use axum::routing::{delete, get, patch, post};
 
 use crate::state::AppState;
 
 mod browse;
 mod databases;
+mod ddl;
 mod edit;
 mod health;
 mod query;
@@ -14,8 +15,19 @@ mod tables;
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/api/health", get(health::health))
-        .route("/api/databases", get(databases::list))
-        .route("/api/databases/{db}/tables", get(tables::list))
+        .route(
+            "/api/databases",
+            get(databases::list).post(ddl::create_database),
+        )
+        .route("/api/databases/{db}", delete(ddl::drop_database))
+        .route(
+            "/api/databases/{db}/tables",
+            get(tables::list).post(ddl::create_table),
+        )
+        .route(
+            "/api/databases/{db}/tables/{table}",
+            patch(ddl::alter_table).delete(ddl::drop_table),
+        )
         .route(
             "/api/databases/{db}/tables/{table}/structure",
             get(structure::structure),
