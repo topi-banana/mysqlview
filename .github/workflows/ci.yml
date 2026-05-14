@@ -65,84 +65,67 @@ jobs:
         run: cargo clippy -p mysqlview-frontend --target wasm32-unknown-unknown -- -D warnings
 
   release-build:
-    name: release build (${{ matrix.os }})
+    name: release build (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
+          # Linux (glibc, default Ubuntu libc)
           - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
             artifact: mysqlview-linux-x86_64
-            binary: mysqlview-backend
           - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
             artifact: mysqlview-linux-aarch64
-            binary: mysqlview-backend
+          # Linux musl (fully static)
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact: mysqlview-linux-x86_64-musl
+            musl: true
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            artifact: mysqlview-linux-aarch64-musl
+            musl: true
+          # Windows (MSVC)
           - os: windows-latest
+            target: x86_64-pc-windows-msvc
             artifact: mysqlview-windows-x86_64
-            binary: mysqlview-backend.exe
+            binary_ext: .exe
           - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
             artifact: mysqlview-windows-aarch64
-            binary: mysqlview-backend.exe
+            binary_ext: .exe
+          # macOS
           - os: macos-latest
+            target: aarch64-apple-darwin
             artifact: mysqlview-macos-aarch64
-            binary: mysqlview-backend
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-unknown-unknown
+          targets: ${{ matrix.target }}, wasm32-unknown-unknown
+      - name: Install musl build deps
+        if: matrix.musl
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends musl-tools
       - uses: Swatinem/rust-cache@v2
         with:
-          key: release-build-${{ matrix.os }}
+          key: release-build-${{ matrix.target }}
       - uses: taiki-e/install-action@v2
         with:
           tool: trunk
       - name: Build frontend (release)
         working-directory: frontend
         run: trunk build --release
-      - name: Build types + backend (default features)
-        run: cargo build --release -p mysqlview-types -p mysqlview-backend
-      - name: Build single-binary backend (embedded-frontend)
-        run: cargo build --release -p mysqlview-backend --features embedded-frontend
-      - name: Upload single-binary artifact
+      - name: Build backend (embedded-frontend)
+        run: cargo build --release --target ${{ matrix.target }} --features embedded-frontend -p mysqlview-backend
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: target/release/${{ matrix.binary }}
-          if-no-files-found: error
-
-  musl-build:
-    name: musl static build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-unknown-linux-musl, wasm32-unknown-unknown
-      - name: Install musl build deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends musl-tools
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: musl-build
-      - uses: jetli/trunk-action@v0.5.1
-        with:
-          version: latest
-      - name: Build frontend (release)
-        working-directory: frontend
-        run: trunk build --release
-      - name: Build static backend (musl + embedded-frontend)
-        run: |
-          cargo build --release \
-            --target x86_64-unknown-linux-musl \
-            --features embedded-frontend \
-            -p mysqlview-backend
-      - name: Upload static binary artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: mysqlview-linux-x86_64-musl
-          path: target/x86_64-unknown-linux-musl/release/mysqlview-backend
+          path: target/${{ matrix.target }}/release/mysqlview-backend${{ matrix.binary_ext }}
           if-no-files-found: error
 
   docker-push:
