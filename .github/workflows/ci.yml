@@ -78,8 +78,16 @@ jobs:
       - uses: jetli/trunk-action@v0.5.1
         with:
           version: latest
-      - name: Build types + backend (release)
-        run: cargo build --release -p mysqlview-types -p mysqlview-backend
       - name: Build frontend (release)
         working-directory: frontend
         run: trunk build --release
+      - name: Build types + backend (default features)
+        run: cargo build --release -p mysqlview-types -p mysqlview-backend
+      - name: Build single-binary backend (embedded-frontend)
+        run: cargo build --release -p mysqlview-backend --features embedded-frontend
+      - name: Upload single-binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mysqlview-linux-x86_64
+          path: target/release/mysqlview-backend
+          if-no-files-found: error
