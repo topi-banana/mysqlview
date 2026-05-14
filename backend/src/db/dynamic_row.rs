@@ -163,9 +163,7 @@ fn extract(row: &MySqlRow, idx: usize, type_name: &str, kind: CellKind) -> Resul
             },
         },
         CellKind::Bytes => match row.try_get::<Option<Vec<u8>>, _>(idx)? {
-            Some(bytes) => CellValue::Bytes {
-                base64: BASE64.encode(bytes),
-            },
+            Some(bytes) => bytes_to_cell(type_name, bytes),
             None => CellValue::Null,
         },
         CellKind::Json => match row.try_get::<Option<serde_json::Value>, _>(idx) {
@@ -180,8 +178,38 @@ fn extract(row: &MySqlRow, idx: usize, type_name: &str, kind: CellKind) -> Resul
             },
         },
     };
-    let _ = type_name;
     Ok::<_, AppError>(cell)
+}
+
+/// Decide whether a `Vec<u8>` read from a "Bytes-kind" column should be shown
+/// as a string or as base64-encoded bytes.
+///
+/// sqlx-mysql reports `CHAR` / `VARCHAR` columns whose character set is
+/// `binary` (charset id 63) with `TypeInfo::name() == "BINARY" | "VARBINARY"`,
+/// so users who store UUIDs or hashes in `CHAR(36) CHARACTER SET binary` would
+/// otherwise see `0x... bytes` in the data grid. For those two type names we
+/// attempt a UTF-8 decode; if the entire payload is valid and free of control
+/// characters (other than tab/newline/cr), we render it as text. Pure binary
+/// types (`BLOB`, `BIT`, `GEOMETRY`, …) always render as bytes.
+fn bytes_to_cell(type_name: &str, bytes: Vec<u8>) -> CellValue {
+    let allow_text_fallback = matches!(
+        type_name.to_ascii_uppercase().as_str(),
+        "BINARY" | "VARBINARY"
+    );
+    if allow_text_fallback
+        && let Ok(s) = std::str::from_utf8(&bytes)
+        && looks_like_text(s)
+    {
+        return CellValue::String(s.to_owned());
+    }
+    CellValue::Bytes {
+        base64: BASE64.encode(bytes),
+    }
+}
+
+fn looks_like_text(s: &str) -> bool {
+    s.chars()
+        .all(|c| !c.is_control() || matches!(c, '\t' | '\n' | '\r'))
 }
 
 /// Read a column as `Option<String>` with a `Vec<u8>` fallback. MySQL drivers
@@ -223,8 +251,13 @@ mod tests {
 
     #[test]
     fn classify_string_types() {
+        assert_eq!(classify("CHAR"), CellKind::Text);
+        assert_eq!(classify("CHAR(36)"), CellKind::Text);
+        assert_eq!(classify("VARCHAR"), CellKind::Text);
         assert_eq!(classify("VARCHAR(255)"), CellKind::Text);
+        assert_eq!(classify("TINYTEXT"), CellKind::Text);
         assert_eq!(classify("TEXT"), CellKind::Text);
+        assert_eq!(classify("MEDIUMTEXT"), CellKind::Text);
         assert_eq!(classify("LONGTEXT"), CellKind::Text);
         assert_eq!(classify("ENUM('a','b')"), CellKind::Text);
         assert_eq!(classify("SET('x','y')"), CellKind::Text);
@@ -255,5 +288,55 @@ mod tests {
     #[test]
     fn classify_unknown_falls_back_to_text() {
         assert_eq!(classify("WEIRD_TYPE"), CellKind::Text);
+    }
+
+    #[test]
+    fn looks_like_text_accepts_printable_utf8() {
+        assert!(looks_like_text("hello"));
+        assert!(looks_like_text("こんにちは"));
+        assert!(looks_like_text("550e8400-e29b-41d4-a716-446655440000"));
+        assert!(looks_like_text("line1\nline2\twith tab\r\n"));
+    }
+
+    #[test]
+    fn looks_like_text_rejects_control_bytes() {
+        assert!(!looks_like_text("\u{0001}"));
+        assert!(!looks_like_text("ab\u{0000}cd"));
+        assert!(!looks_like_text("\x07bell"));
+    }
+
+    #[test]
+    fn bytes_to_cell_returns_string_for_text_in_varbinary() {
+        let bytes = b"550e8400-e29b-41d4-a716-446655440000".to_vec();
+        let cell = bytes_to_cell("VARBINARY", bytes);
+        match cell {
+            CellValue::String(s) => {
+                assert_eq!(s, "550e8400-e29b-41d4-a716-446655440000");
+            }
+            other => panic!("expected String, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn bytes_to_cell_returns_string_for_text_in_binary() {
+        let bytes = "uuid-as-binary".as_bytes().to_vec();
+        let cell = bytes_to_cell("BINARY", bytes);
+        assert!(matches!(cell, CellValue::String(_)));
+    }
+
+    #[test]
+    fn bytes_to_cell_keeps_raw_binary_as_bytes() {
+        let bytes = vec![0x00, 0x01, 0x02, 0xFF];
+        let cell = bytes_to_cell("VARBINARY", bytes);
+        assert!(matches!(cell, CellValue::Bytes { .. }));
+    }
+
+    #[test]
+    fn bytes_to_cell_keeps_blob_as_bytes_even_for_valid_utf8() {
+        // BLOB-family types are always rendered as raw bytes even if the payload
+        // happens to be valid UTF-8 — preserves user intent for "this is binary".
+        let bytes = b"this is text".to_vec();
+        let cell = bytes_to_cell("BLOB", bytes);
+        assert!(matches!(cell, CellValue::Bytes { .. }));
     }
 }
