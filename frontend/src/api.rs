@@ -1,8 +1,9 @@
 use gloo_net::http::Request;
 use mysqlview_types::{
-    ApiError, BrowseRequest, BrowseResponse, DatabaseSummary, DeleteRowRequest,
-    EditAffectedResponse, InsertRowRequest, InsertRowResponse, QueryRequest, QueryResponse,
-    TableStructure, TableSummary, UpdateRowRequest,
+    AlterTableRequest, ApiError, BrowseRequest, BrowseResponse, CreateDatabaseRequest,
+    CreateTableRequest, DatabaseSummary, DdlResponse, DeleteRowRequest, DropDatabaseRequest,
+    DropTableRequest, EditAffectedResponse, InsertRowRequest, InsertRowResponse, QueryRequest,
+    QueryResponse, TableStructure, TableSummary, UpdateRowRequest,
 };
 use serde::de::DeserializeOwned;
 
@@ -157,6 +158,78 @@ pub async fn run_query(req: &QueryRequest) -> Result<QueryResponse, ApiClientErr
         .send()
         .await
         .map_err(|e| ApiClientError::Network(e.to_string()))?;
+    handle(resp).await
+}
+
+pub async fn create_database(req: &CreateDatabaseRequest) -> Result<DdlResponse, ApiClientError> {
+    let resp = Request::post("/api/databases")
+        .json(req)
+        .map_err(|e| ApiClientError::Network(e.to_string()))?
+        .send()
+        .await
+        .map_err(|e| ApiClientError::Network(e.to_string()))?;
+    handle(resp).await
+}
+
+pub async fn drop_database(
+    db: &str,
+    req: &DropDatabaseRequest,
+) -> Result<DdlResponse, ApiClientError> {
+    let resp = Request::delete(&format!("/api/databases/{}", urlencode(db)))
+        .json(req)
+        .map_err(|e| ApiClientError::Network(e.to_string()))?
+        .send()
+        .await
+        .map_err(|e| ApiClientError::Network(e.to_string()))?;
+    handle(resp).await
+}
+
+pub async fn create_table(
+    db: &str,
+    req: &CreateTableRequest,
+) -> Result<DdlResponse, ApiClientError> {
+    let resp = Request::post(&format!("/api/databases/{}/tables", urlencode(db)))
+        .json(req)
+        .map_err(|e| ApiClientError::Network(e.to_string()))?
+        .send()
+        .await
+        .map_err(|e| ApiClientError::Network(e.to_string()))?;
+    handle(resp).await
+}
+
+pub async fn alter_table(
+    db: &str,
+    table: &str,
+    req: &AlterTableRequest,
+) -> Result<DdlResponse, ApiClientError> {
+    let resp = Request::patch(&format!(
+        "/api/databases/{}/tables/{}",
+        urlencode(db),
+        urlencode(table),
+    ))
+    .json(req)
+    .map_err(|e| ApiClientError::Network(e.to_string()))?
+    .send()
+    .await
+    .map_err(|e| ApiClientError::Network(e.to_string()))?;
+    handle(resp).await
+}
+
+pub async fn drop_table(
+    db: &str,
+    table: &str,
+    req: &DropTableRequest,
+) -> Result<DdlResponse, ApiClientError> {
+    let resp = Request::delete(&format!(
+        "/api/databases/{}/tables/{}",
+        urlencode(db),
+        urlencode(table),
+    ))
+    .json(req)
+    .map_err(|e| ApiClientError::Network(e.to_string()))?
+    .send()
+    .await
+    .map_err(|e| ApiClientError::Network(e.to_string()))?;
     handle(resp).await
 }
 
