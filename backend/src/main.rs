@@ -50,7 +50,7 @@ async fn main() -> anyhow::Result<()> {
         .as_deref()
         .context("DATABASE_URI environment variable or --database-url is required")?;
 
-    let state = AppState::new(database_url, cli.max_rows)
+    let state = AppState::new(database_url, cli.max_rows, cli.max_import_bytes)
         .await
         .context("failed to initialize MySQL connection pool")?;
 

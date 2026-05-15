@@ -37,4 +37,13 @@ pub struct Cli {
     /// Maximum number of rows returned by any single query.
     #[arg(long, default_value_t = 1000, env = "MYSQLVIEW_MAX_ROWS")]
     pub max_rows: u32,
+
+    /// Maximum size (in bytes) accepted by the CSV / SQL import endpoints.
+    /// Default 100 MiB. Other routes keep axum's default 2 MiB ceiling.
+    #[arg(
+        long,
+        default_value_t = 100 * 1024 * 1024,
+        env = "MYSQLVIEW_MAX_IMPORT_BYTES"
+    )]
+    pub max_import_bytes: usize,
 }

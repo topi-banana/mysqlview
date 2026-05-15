@@ -263,7 +263,7 @@ pub fn build_delete_sql(db: &str, table: &str, key_columns: &[&str]) -> String {
     format!("DELETE FROM {qualified} WHERE {where_clause}")
 }
 
-fn decode_bytes_if_any(v: &CellValue) -> Result<Vec<u8>> {
+pub(crate) fn decode_bytes_if_any(v: &CellValue) -> Result<Vec<u8>> {
     match v {
         CellValue::Bytes { base64 } => BASE64
             .decode(base64.as_bytes())
@@ -272,7 +272,7 @@ fn decode_bytes_if_any(v: &CellValue) -> Result<Vec<u8>> {
     }
 }
 
-fn bind_cell<'q>(
+pub(crate) fn bind_cell<'q>(
     q: Query<'q, MySql, MySqlArguments>,
     v: &'q CellValue,
     bytes: &'q [u8],
