@@ -9,10 +9,12 @@ use crate::components::empty_state::EmptyState;
 use crate::components::error_banner::ErrorBanner;
 use crate::components::input::TextInput;
 use crate::components::skeleton::Skeleton;
+use crate::components::sql_import::SqlImport;
 use crate::components::table_create::TableCreate;
 use crate::router::Route;
 use crate::state::LoadingState;
 use crate::theme;
+use crate::util::download::download_text;
 
 pub enum Msg {
     Fetch,
@@ -25,6 +27,11 @@ pub enum Msg {
     OpenCreate,
     CloseCreate,
     Created(String),
+    Export,
+    ExportDone(Result<(String, String), ApiClientError>),
+    OpenImport,
+    CloseImport,
+    ImportDone,
 }
 
 #[derive(Properties, PartialEq)]
@@ -39,6 +46,8 @@ pub struct DatabasePage {
     dropping: bool,
     drop_error: Option<ApiClientError>,
     show_create: bool,
+    show_import: bool,
+    export_error: Option<ApiClientError>,
 }
 
 impl Component for DatabasePage {
@@ -54,6 +63,8 @@ impl Component for DatabasePage {
             dropping: false,
             drop_error: None,
             show_create: false,
+            show_import: false,
+            export_error: None,
         }
     }
 
@@ -135,6 +146,39 @@ impl Component for DatabasePage {
                 }
                 true
             }
+            Msg::Export => {
+                self.export_error = None;
+                let db = ctx.props().db.clone();
+                ctx.link()
+                    .send_future(async move { Msg::ExportDone(api::export_database_sql(&db).await) });
+                false
+            }
+            Msg::ExportDone(Ok((filename, body))) => {
+                let fallback = format!("{}.sql", ctx.props().db);
+                let name = if filename.is_empty() {
+                    fallback.as_str()
+                } else {
+                    filename.as_str()
+                };
+                let _ = download_text(name, "application/sql", &body);
+                false
+            }
+            Msg::ExportDone(Err(e)) => {
+                self.export_error = Some(e);
+                true
+            }
+            Msg::OpenImport => {
+                self.show_import = true;
+                true
+            }
+            Msg::CloseImport => {
+                self.show_import = false;
+                true
+            }
+            Msg::ImportDone => {
+                ctx.link().send_message(Msg::Fetch);
+                true
+            }
         }
     }
 
@@ -146,6 +190,10 @@ impl Component for DatabasePage {
         let open_create = ctx.link().callback(|_| Msg::OpenCreate);
         let close_create = ctx.link().callback(|_| Msg::CloseCreate);
         let created = ctx.link().callback(Msg::Created);
+        let on_export = ctx.link().callback(|_| Msg::Export);
+        let on_open_import = ctx.link().callback(|_| Msg::OpenImport);
+        let on_close_import = ctx.link().callback(|_| Msg::CloseImport);
+        let on_import_done = ctx.link().callback(|_| Msg::ImportDone);
         html! {
             <div class="space-y-6">
                 <div class="flex items-start justify-between gap-4">
@@ -153,7 +201,13 @@ impl Component for DatabasePage {
                         <div class={theme::OVERLINE}>{ "Database" }</div>
                         <h1 class={theme::SECTION_HEADING}>{ db }</h1>
                     </div>
-                    <div class="flex gap-2">
+                    <div class="flex gap-2 flex-wrap">
+                        <Button variant={ButtonVariant::Secondary} onclick={on_export}>
+                            { Html::from("Export SQL dump") }
+                        </Button>
+                        <Button variant={ButtonVariant::Secondary} onclick={on_open_import}>
+                            { Html::from("Import SQL") }
+                        </Button>
                         <Button variant={ButtonVariant::Primary} onclick={open_create}>
                             { Html::from("New table") }
                         </Button>
@@ -175,6 +229,9 @@ impl Component for DatabasePage {
                 if let Some(e) = &self.drop_error {
                     <ErrorBanner error={e.clone()} />
                 }
+                if let Some(e) = &self.export_error {
+                    <ErrorBanner error={e.clone()} />
+                }
                 if self.show_drop {
                     <ConfirmDialog
                         title={AttrValue::from("Drop database")}
@@ -192,6 +249,13 @@ impl Component for DatabasePage {
                         db={ctx.props().db.clone()}
                         on_close={close_create}
                         on_created={created}
+                    />
+                }
+                if self.show_import {
+                    <SqlImport
+                        db={ctx.props().db.clone()}
+                        on_close={on_close_import}
+                        on_done={on_import_done}
                     />
                 }
             </div>

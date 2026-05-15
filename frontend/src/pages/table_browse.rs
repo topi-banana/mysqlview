@@ -10,6 +10,7 @@ use yew_router::prelude::*;
 use crate::api::{self, ApiClientError};
 use crate::components::button::{Button, ButtonVariant};
 use crate::components::confirm_dialog::ConfirmDialog;
+use crate::components::csv_import::CsvImport;
 use crate::components::data_grid::DataGrid;
 use crate::components::error_banner::ErrorBanner;
 use crate::components::modal::Modal;
@@ -19,6 +20,7 @@ use crate::components::skeleton::Skeleton;
 use crate::router::Route;
 use crate::state::LoadingState;
 use crate::theme;
+use crate::util::download::download_text;
 
 #[derive(Properties, PartialEq)]
 pub struct Props {
@@ -32,6 +34,7 @@ enum ActiveModal {
     Add,
     Edit(usize),
     Delete(usize),
+    Import,
 }
 
 pub enum Msg {
@@ -43,6 +46,7 @@ pub enum Msg {
     OpenAdd,
     OpenEdit(usize),
     OpenDelete(usize),
+    OpenImport,
     CloseModal,
     SubmitInsert(RowValues),
     SubmitUpdate(RowValues),
@@ -50,6 +54,9 @@ pub enum Msg {
     InsertDone(Result<InsertRowResponse, ApiClientError>),
     UpdateDone(Result<EditAffectedResponse, ApiClientError>),
     DeleteDone(Result<EditAffectedResponse, ApiClientError>),
+    ExportCsv,
+    ExportSql,
+    ExportDone(Result<(String, String, &'static str), ApiClientError>),
 }
 
 pub struct TableBrowsePage {
@@ -217,6 +224,52 @@ impl Component for TableBrowsePage {
                 self.mutation_error = Some(e);
                 true
             }
+            Msg::OpenImport => {
+                self.modal = ActiveModal::Import;
+                self.mutation_error = None;
+                true
+            }
+            Msg::ExportCsv => {
+                let db = ctx.props().db.clone();
+                let table = ctx.props().table.clone();
+                ctx.link().send_future(async move {
+                    Msg::ExportDone(
+                        api::export_table_csv(&db, &table)
+                            .await
+                            .map(|(name, body)| (name, body, "text/csv;charset=utf-8")),
+                    )
+                });
+                false
+            }
+            Msg::ExportSql => {
+                let db = ctx.props().db.clone();
+                let table = ctx.props().table.clone();
+                ctx.link().send_future(async move {
+                    Msg::ExportDone(
+                        api::export_table_sql(&db, &table)
+                            .await
+                            .map(|(name, body)| (name, body, "application/sql")),
+                    )
+                });
+                false
+            }
+            Msg::ExportDone(Ok((filename, body, mime))) => {
+                let p = ctx.props();
+                let fallback = format!("{}__{}.txt", p.db, p.table);
+                let name = if filename.is_empty() {
+                    fallback.as_str()
+                } else {
+                    filename.as_str()
+                };
+                // download_text failing means the browser is missing DOM APIs
+                // we expect to be present; nothing actionable here, so swallow.
+                let _ = download_text(name, mime, &body);
+                false
+            }
+            Msg::ExportDone(Err(e)) => {
+                self.mutation_error = Some(e);
+                true
+            }
         }
     }
 
@@ -225,6 +278,9 @@ impl Component for TableBrowsePage {
         let editable_columns = self.editable_key_columns();
         let editable = editable_columns.is_some();
         let on_add = ctx.link().callback(|_| Msg::OpenAdd);
+        let on_export_csv = ctx.link().callback(|_| Msg::ExportCsv);
+        let on_export_sql = ctx.link().callback(|_| Msg::ExportSql);
+        let on_import = ctx.link().callback(|_| Msg::OpenImport);
 
         html! {
             <div class="space-y-6">
@@ -237,13 +293,26 @@ impl Component for TableBrowsePage {
                     </div>
                     <div class="flex items-center justify-between gap-4 flex-wrap">
                         <h1 class={theme::SECTION_HEADING}>{ &p.table }</h1>
-                        <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-2 flex-wrap">
                             <Link<Route>
                                 to={Route::Structure { db: p.db.clone(), table: p.table.clone() }}
                                 classes={theme::BTN_GHOST}
                             >
                                 { "Structure" }
                             </Link<Route>>
+                            <Button variant={ButtonVariant::Secondary} onclick={on_export_csv}>
+                                { Html::from("Export CSV") }
+                            </Button>
+                            <Button variant={ButtonVariant::Secondary} onclick={on_export_sql}>
+                                { Html::from("Export SQL") }
+                            </Button>
+                            <Button
+                                variant={ButtonVariant::Secondary}
+                                disabled={!editable}
+                                onclick={on_import}
+                            >
+                                { Html::from("Import CSV") }
+                            </Button>
                             <Button
                                 variant={ButtonVariant::Primary}
                                 disabled={!editable}
@@ -305,6 +374,22 @@ impl TableBrowsePage {
     }
 
     fn view_modal(&self, ctx: &Context<Self>) -> Html {
+        let on_close = ctx.link().callback(|_| Msg::CloseModal);
+        // Import doesn't need the structure/state to be Ready — handle it before
+        // the early returns below.
+        if matches!(self.modal, ActiveModal::Import) {
+            let p = ctx.props();
+            let on_done = ctx.link().callback(|_| Msg::FetchAll);
+            return html! {
+                <CsvImport
+                    db={p.db.clone()}
+                    table={p.table.clone()}
+                    on_close={on_close}
+                    on_done={on_done}
+                />
+            };
+        }
+
         let structure = match &self.structure {
             LoadingState::Ready(s) => s.clone(),
             _ => return Html::default(),
@@ -313,10 +398,9 @@ impl TableBrowsePage {
             LoadingState::Ready(r) => r,
             _ => return Html::default(),
         };
-        let on_close = ctx.link().callback(|_| Msg::CloseModal);
 
         match &self.modal {
-            ActiveModal::None => Html::default(),
+            ActiveModal::None | ActiveModal::Import => Html::default(),
             ActiveModal::Add => {
                 let on_submit = ctx.link().callback(Msg::SubmitInsert);
                 let on_cancel = on_close.clone();
