@@ -149,8 +149,9 @@ impl Component for DatabasePage {
             Msg::Export => {
                 self.export_error = None;
                 let db = ctx.props().db.clone();
-                ctx.link()
-                    .send_future(async move { Msg::ExportDone(api::export_database_sql(&db).await) });
+                ctx.link().send_future(async move {
+                    Msg::ExportDone(api::export_database_sql(&db).await)
+                });
                 false
             }
             Msg::ExportDone(Ok((filename, body))) => {

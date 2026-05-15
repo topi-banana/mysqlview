@@ -45,11 +45,8 @@ pub fn cell_to_csv_string(cell: &CellValue) -> String {
 /// is required *or* when the field is the empty string — the latter so callers
 /// can encode an empty string distinct from NULL (which is bare-empty).
 pub fn csv_quote(s: &str) -> String {
-    let needs_quoting = s.is_empty()
-        || s.contains(',')
-        || s.contains('"')
-        || s.contains('\n')
-        || s.contains('\r');
+    let needs_quoting =
+        s.is_empty() || s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r');
     if !needs_quoting {
         return s.to_owned();
     }
@@ -255,7 +252,10 @@ mod tests {
     #[test]
     fn csv_empty_string_is_quoted_empty() {
         // Round-trip safety: NULL and "" must be distinguishable.
-        assert_eq!(cell_to_csv_string(&CellValue::String(String::new())), "\"\"");
+        assert_eq!(
+            cell_to_csv_string(&CellValue::String(String::new())),
+            "\"\""
+        );
     }
 
     #[test]

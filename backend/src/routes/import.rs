@@ -76,9 +76,8 @@ pub async fn import_table_csv(
 
     let mut inserted: u64 = 0;
     for (row_idx, raw_row) in lines.enumerate() {
-        let fields = parse_csv_line(raw_row).map_err(|e| {
-            AppError::BadRequest(format!("row {row_idx}: {}", error_message(&e)))
-        })?;
+        let fields = parse_csv_line(raw_row)
+            .map_err(|e| AppError::BadRequest(format!("row {row_idx}: {}", error_message(&e))))?;
         if fields.len() != header_cols.len() {
             return Ok(Json(CsvImportResponse {
                 inserted,
@@ -107,7 +106,8 @@ pub async fn import_table_csv(
                 }
             };
             // NULL into a NOT NULL column: surface the policy clearly.
-            if matches!(cell, CellValue::Null) && !nullable.get(col.as_str()).copied().unwrap_or(true)
+            if matches!(cell, CellValue::Null)
+                && !nullable.get(col.as_str()).copied().unwrap_or(true)
             {
                 return Ok(Json(CsvImportResponse {
                     inserted,
@@ -162,12 +162,9 @@ pub async fn import_database_sql(
 
     // USE the target schema so unqualified identifiers resolve there.
     let mut conn = state.pool.acquire().await?;
-    sqlx::query(&format!(
-        "USE {}",
-        crate::validate::quote_identifier(&db)
-    ))
-    .execute(&mut *conn)
-    .await?;
+    sqlx::query(&format!("USE {}", crate::validate::quote_identifier(&db)))
+        .execute(&mut *conn)
+        .await?;
 
     let mut statements_run: u64 = 0;
     let mut total_affected_rows: u64 = 0;
@@ -239,9 +236,7 @@ impl<'a> Iterator for LineIter<'a> {
             for (i, c) in self.rest.char_indices() {
                 if c == '"' {
                     // RFC-4180 doubled quote inside a quoted field: skip both.
-                    if quote_open
-                        && self.rest.as_bytes().get(i + 1).copied() == Some(b'"')
-                    {
+                    if quote_open && self.rest.as_bytes().get(i + 1).copied() == Some(b'"') {
                         // We'll handle the second quote in the next iteration of
                         // the same loop because the for-loop visits both; just
                         // toggle off-then-on which has no net effect. Simpler:

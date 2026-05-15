@@ -275,7 +275,12 @@ mod tests {
 
     #[test]
     fn split_rejects_unterminated_string() {
-        assert!(split_statements("SELECT 'unterminated").next().unwrap().is_err());
+        assert!(
+            split_statements("SELECT 'unterminated")
+                .next()
+                .unwrap()
+                .is_err()
+        );
     }
 
     #[test]

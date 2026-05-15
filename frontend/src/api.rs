@@ -265,10 +265,7 @@ pub async fn drop_table(
     handle(resp).await
 }
 
-pub async fn export_table_csv(
-    db: &str,
-    table: &str,
-) -> Result<(String, String), ApiClientError> {
+pub async fn export_table_csv(db: &str, table: &str) -> Result<(String, String), ApiClientError> {
     let resp = Request::get(&format!(
         "/api/databases/{}/tables/{}/export.csv",
         urlencode(db),
@@ -280,10 +277,7 @@ pub async fn export_table_csv(
     handle_text(resp).await
 }
 
-pub async fn export_table_sql(
-    db: &str,
-    table: &str,
-) -> Result<(String, String), ApiClientError> {
+pub async fn export_table_sql(db: &str, table: &str) -> Result<(String, String), ApiClientError> {
     let resp = Request::get(&format!(
         "/api/databases/{}/tables/{}/export.sql",
         urlencode(db),

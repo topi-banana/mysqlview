@@ -17,10 +17,14 @@ A local-only, OSS-quality MySQL WebUI written in Rust. Backed by [Axum](https://
   database pages, plus `CREATE`/`ALTER`/`DROP TABLE` (ALTER supports
   add/drop/modify/rename column and rename table) gated behind confirmation
   dialogs for destructive actions
+- CSV / SQL **export**: stream a table out as CSV or as `INSERT` statements;
+  dump an entire database (DDL + data, foreign-key checks toggled off and back
+  on around the dump) for backup or sharing
+- CSV / SQL **import**: bulk-load rows from a CSV file or paste a multi-statement
+  SQL script into a database; the wizard surfaces the failing row /
+  statement index when an import stops short
 - Console for executing arbitrary SQL (read or write) with results rendered as a typed data grid
 - A consistent, type-safe API thanks to a shared `mysqlview-types` crate used by both backend and frontend
-
-Import/export remain **out of scope** and are planned for a future phase.
 
 ## Architecture
 
@@ -34,7 +38,23 @@ mysqlview/
 - The backend pulls schema metadata from `information_schema` and `SHOW CREATE TABLE`.
 - The backend rejects any identifier that does not match `^[A-Za-z0-9_$]{1,64}$` and verifies existence in `information_schema` before quoting and interpolating it. All filter values use `sqlx` parameter binding.
 - DDL requests reuse the same identifier allowlist and additionally validate every column type / DEFAULT fragment against a character allowlist that rejects semicolons, backticks, comment markers, and unbalanced quotes. The exact statement the server executed is returned in the response so the UI can echo it back.
+- Exports stream straight out of `sqlx::query(...).fetch(...)` into `axum::body::Body::from_stream`, so multi-million-row tables never materialise in memory. SQL outputs terminate with a `-- EXPORT COMPLETE` sentinel so truncated downloads are detectable post-hoc. Imports run statement-by-statement (multi-statement SQL is split with a quote-/comment-aware parser that also handles `#` line comments and rejects `DELIMITER` directives) and fail fast on the first error.
 - The frontend issues JSON-over-HTTP requests to `/api/*`. The data grid renders MySQL values via a typed `CellValue` enum (Null/Bool/Int/Float/String/Bytes/Json) so dates, decimals, and JSON columns survive a round trip without precision loss.
+
+### CSV conventions
+
+The CSV import / export follows the same round-trip-safe convention as
+PostgreSQL's `\copy ... CSV`:
+
+| CellValue        | CSV cell                                                  |
+|---|---|
+| `NULL`           | empty unquoted cell                                       |
+| Empty string     | quoted `""`                                               |
+| Bytes (blob)     | `b64:<base64>` so they're distinguishable from real text  |
+| JSON             | serialised JSON text (quoted per RFC-4180 if needed)      |
+
+The output is UTF-8 without a BOM — Excel on Windows may need to be told the
+encoding explicitly.
 
 ## Quickstart (development)
 
@@ -120,6 +140,7 @@ cargo run --release -p mysqlview-backend -- --frontend-dist ./frontend/dist
 | `--database-url` | `DATABASE_URI` | *(required)* | MySQL connection URI |
 | `--frontend-dist` | `MYSQLVIEW_FRONTEND_DIST` | *(unset)* | Path to `frontend/dist` for static serving |
 | `--max-rows` | `MYSQLVIEW_MAX_ROWS` | `1000` | Maximum rows returned by any single query |
+| `--max-import-bytes` | `MYSQLVIEW_MAX_IMPORT_BYTES` | `104857600` (100 MiB) | Maximum body size accepted by the CSV / SQL import endpoints |
 
 ## Quality checks
 
@@ -134,7 +155,7 @@ cargo fmt --all -- --check
 
 - ~~Phase 2: row-level editing (INSERT/UPDATE/DELETE)~~ ✅ shipped
 - ~~Phase 3: DDL wizards (CREATE/ALTER/DROP TABLE, CREATE/DROP DATABASE)~~ ✅ shipped
-- Phase 4: CSV / SQL import & export
+- ~~Phase 4: CSV / SQL import & export~~ ✅ shipped
 - Phase 5: SQL editor enhancements (syntax highlighting, autocomplete), dark mode, saved queries
 
 ## License
