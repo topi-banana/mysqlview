@@ -1,9 +1,10 @@
 use gloo_net::http::Request;
 use mysqlview_types::{
     AlterTableRequest, ApiError, BrowseRequest, BrowseResponse, CreateDatabaseRequest,
-    CreateTableRequest, DatabaseSummary, DdlResponse, DeleteRowRequest, DropDatabaseRequest,
-    DropTableRequest, EditAffectedResponse, InsertRowRequest, InsertRowResponse, QueryRequest,
-    QueryResponse, TableStructure, TableSummary, UpdateRowRequest,
+    CreateTableRequest, CsvImportResponse, DatabaseSummary, DdlResponse, DeleteRowRequest,
+    DropDatabaseRequest, DropTableRequest, EditAffectedResponse, InsertRowRequest,
+    InsertRowResponse, QueryRequest, QueryResponse, SqlImportResponse, TableStructure,
+    TableSummary, UpdateRowRequest,
 };
 use serde::de::DeserializeOwned;
 
@@ -53,6 +54,37 @@ async fn handle<T: DeserializeOwned>(resp: gloo_net::http::Response) -> Result<T
         });
         Err(ApiClientError::Status { code: status, body })
     }
+}
+
+/// Like [`handle`], but for endpoints that return a raw text body (the CSV /
+/// SQL export routes). Errors still come back as JSON-encoded `ApiError`.
+async fn handle_text(resp: gloo_net::http::Response) -> Result<(String, String), ApiClientError> {
+    let status = resp.status();
+    let filename = filename_from_disposition(&resp).unwrap_or_default();
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| ApiClientError::Network(e.to_string()))?;
+    if (200..300).contains(&status) {
+        Ok((filename, text))
+    } else {
+        let body = serde_json::from_str::<ApiError>(&text).unwrap_or_else(|_| ApiError {
+            code: "UNKNOWN".into(),
+            message: text,
+            hint: None,
+        });
+        Err(ApiClientError::Status { code: status, body })
+    }
+}
+
+fn filename_from_disposition(resp: &gloo_net::http::Response) -> Option<String> {
+    let header = resp.headers().get("content-disposition")?;
+    // Look for filename="...".
+    let idx = header.find("filename=")?;
+    let rest = &header[idx + "filename=".len()..];
+    let trimmed = rest.trim_start_matches('"');
+    let end = trimmed.find('"').unwrap_or(trimmed.len());
+    Some(trimmed[..end].to_owned())
 }
 
 pub async fn list_databases() -> Result<Vec<DatabaseSummary>, ApiClientError> {
@@ -230,6 +262,77 @@ pub async fn drop_table(
     .send()
     .await
     .map_err(|e| ApiClientError::Network(e.to_string()))?;
+    handle(resp).await
+}
+
+pub async fn export_table_csv(
+    db: &str,
+    table: &str,
+) -> Result<(String, String), ApiClientError> {
+    let resp = Request::get(&format!(
+        "/api/databases/{}/tables/{}/export.csv",
+        urlencode(db),
+        urlencode(table),
+    ))
+    .send()
+    .await
+    .map_err(|e| ApiClientError::Network(e.to_string()))?;
+    handle_text(resp).await
+}
+
+pub async fn export_table_sql(
+    db: &str,
+    table: &str,
+) -> Result<(String, String), ApiClientError> {
+    let resp = Request::get(&format!(
+        "/api/databases/{}/tables/{}/export.sql",
+        urlencode(db),
+        urlencode(table),
+    ))
+    .send()
+    .await
+    .map_err(|e| ApiClientError::Network(e.to_string()))?;
+    handle_text(resp).await
+}
+
+pub async fn export_database_sql(db: &str) -> Result<(String, String), ApiClientError> {
+    let resp = Request::get(&format!("/api/databases/{}/export.sql", urlencode(db)))
+        .send()
+        .await
+        .map_err(|e| ApiClientError::Network(e.to_string()))?;
+    handle_text(resp).await
+}
+
+pub async fn import_table_csv(
+    db: &str,
+    table: &str,
+    body: &str,
+) -> Result<CsvImportResponse, ApiClientError> {
+    let resp = Request::post(&format!(
+        "/api/databases/{}/tables/{}/import.csv",
+        urlencode(db),
+        urlencode(table),
+    ))
+    .header("Content-Type", "text/csv; charset=utf-8")
+    .body(body.to_owned())
+    .map_err(|e| ApiClientError::Network(e.to_string()))?
+    .send()
+    .await
+    .map_err(|e| ApiClientError::Network(e.to_string()))?;
+    handle(resp).await
+}
+
+pub async fn import_database_sql(
+    db: &str,
+    body: &str,
+) -> Result<SqlImportResponse, ApiClientError> {
+    let resp = Request::post(&format!("/api/databases/{}/import.sql", urlencode(db)))
+        .header("Content-Type", "application/sql")
+        .body(body.to_owned())
+        .map_err(|e| ApiClientError::Network(e.to_string()))?
+        .send()
+        .await
+        .map_err(|e| ApiClientError::Network(e.to_string()))?;
     handle(resp).await
 }
 

@@ -5,6 +5,7 @@ mod pages;
 mod router;
 mod state;
 mod theme;
+mod util;
 
 use app::App;
 
