@@ -40,6 +40,7 @@ rust_decimal = { version = "1.36", features = ["serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
+async-stream = "0.3"
 include_dir = "0.7"
 thiserror = "2"
 tracing = "0.1"

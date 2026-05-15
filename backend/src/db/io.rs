@@ -8,7 +8,9 @@
 //!   numeric literals, single-quoted strings with embedded `''` escaping,
 //!   `0x...` for bytes, single-quoted JSON text (MySQL casts implicitly).
 
-// Consumers (export / import endpoints) land in follow-up commits.
+// Some helpers (parse_csv_line, parse_csv_cell, hex_encode) are only used by
+// follow-up commits' import endpoints; suppress the dead-code warning until
+// then.
 #![allow(dead_code)]
 
 use base64::Engine;
@@ -16,7 +18,7 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use mysqlview_types::CellValue;
 
 use crate::error::{AppError, Result};
-use crate::validate::escape_sql_string_literal;
+use crate::validate::{escape_sql_string_literal, quote_identifier};
 
 /// Marker prefix used in CSV cells to encode a binary payload as base64. The
 /// prefix is chosen to be visually distinct and unlikely to appear in real
@@ -110,6 +112,61 @@ pub fn cell_to_sql_literal(cell: &CellValue) -> String {
         },
         CellValue::Json(v) => format!("'{}'", escape_sql_string_literal(&v.to_string())),
     }
+}
+
+/// Build the CSV header row (column names) terminated by `\n`.
+///
+/// The column names come from the server's `information_schema` lookup, which
+/// has already validated them; we still apply `csv_quote` so column names
+/// containing commas or quotes survive.
+pub fn build_csv_header(columns: &[String]) -> String {
+    let mut out = String::new();
+    for (i, name) in columns.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        out.push_str(&csv_quote(name));
+    }
+    out.push('\n');
+    out
+}
+
+/// Build one CSV data row from a slice of `CellValue`s, terminated by `\n`.
+pub fn build_csv_row(cells: &[CellValue]) -> String {
+    let mut out = String::new();
+    for (i, cell) in cells.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        out.push_str(&cell_to_csv_string(cell));
+    }
+    out.push('\n');
+    out
+}
+
+/// Build an `INSERT INTO `db`.`table` (`col`, ...) VALUES (...);` statement
+/// for a single row. One INSERT per row keeps the import path's failure mode
+/// simple (the failing-row index is unambiguous) and keeps statement size
+/// bounded.
+pub fn build_insert_statement(
+    db: &str,
+    table: &str,
+    columns: &[String],
+    cells: &[CellValue],
+) -> String {
+    debug_assert_eq!(columns.len(), cells.len());
+    let qualified = format!("{}.{}", quote_identifier(db), quote_identifier(table));
+    let cols = columns
+        .iter()
+        .map(|c| quote_identifier(c))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let values = cells
+        .iter()
+        .map(cell_to_sql_literal)
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("INSERT INTO {qualified} ({cols}) VALUES ({values});\n")
 }
 
 fn hex_encode(bytes: &[u8]) -> String {
@@ -297,6 +354,39 @@ mod tests {
     #[test]
     fn parse_csv_line_rejects_unterminated_quote() {
         assert!(parse_csv_line("\"unterminated").is_err());
+    }
+
+    #[test]
+    fn build_csv_header_quotes_only_when_needed() {
+        assert_eq!(
+            build_csv_header(&["id".into(), "weird,name".into()]),
+            "id,\"weird,name\"\n"
+        );
+    }
+
+    #[test]
+    fn build_csv_row_separates_with_comma() {
+        let row = build_csv_row(&[
+            CellValue::Int(1),
+            CellValue::Null,
+            CellValue::String("hi".into()),
+            CellValue::String(String::new()),
+        ]);
+        assert_eq!(row, "1,,hi,\"\"\n");
+    }
+
+    #[test]
+    fn build_insert_statement_emits_full_row() {
+        let sql = build_insert_statement(
+            "demo",
+            "actor",
+            &["id".into(), "name".into()],
+            &[CellValue::Int(7), CellValue::String("ada".into())],
+        );
+        assert_eq!(
+            sql,
+            "INSERT INTO `demo`.`actor` (`id`, `name`) VALUES (7, 'ada');\n"
+        );
     }
 
     /// Round-trip property: every CellValue produced by the server must

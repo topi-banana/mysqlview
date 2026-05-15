@@ -7,6 +7,7 @@ mod browse;
 mod databases;
 mod ddl;
 mod edit;
+mod export;
 mod health;
 mod query;
 mod structure;
@@ -20,6 +21,10 @@ pub fn router(state: AppState) -> Router {
             get(databases::list).post(ddl::create_database),
         )
         .route("/api/databases/{db}", delete(ddl::drop_database))
+        .route(
+            "/api/databases/{db}/export.sql",
+            get(export::export_database_sql),
+        )
         .route(
             "/api/databases/{db}/tables",
             get(tables::list).post(ddl::create_table),
@@ -39,6 +44,14 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/api/databases/{db}/tables/{table}/rows",
             post(edit::insert).patch(edit::update).delete(edit::delete),
+        )
+        .route(
+            "/api/databases/{db}/tables/{table}/export.csv",
+            get(export::export_table_csv),
+        )
+        .route(
+            "/api/databases/{db}/tables/{table}/export.sql",
+            get(export::export_table_sql),
         )
         .route("/api/query", post(query::query))
         .with_state(state)
