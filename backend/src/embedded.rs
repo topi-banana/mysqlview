@@ -1,17 +1,17 @@
 //! Static asset handler backed by `include_dir!`.
 //!
 //! Active only when the `embedded-frontend` feature is enabled. The macro
-//! captures `frontend/dist/` at compile time as a `&'static Dir`, and the
-//! `serve` handler streams files out with a content-type guessed from the
-//! extension. Unknown paths fall back to `index.html` so the SPA router on
-//! the client can take over.
+//! captures the workspace-root `dist/` at compile time as a `&'static Dir`,
+//! and the `serve` handler streams files out with a content-type guessed
+//! from the extension. Unknown paths fall back to `index.html` so the SPA
+//! router on the client can take over.
 
 use axum::body::Body;
 use axum::http::{StatusCode, Uri, header};
 use axum::response::Response;
 use include_dir::{Dir, include_dir};
 
-static FRONTEND_DIST: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../frontend/dist");
+static FRONTEND_DIST: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../dist");
 
 pub async fn serve(uri: Uri) -> Response {
     let path = uri.path().trim_start_matches('/');

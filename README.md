@@ -83,7 +83,7 @@ Then open <http://127.0.0.1:8080>.
 ## Production build (single binary)
 
 Build the frontend first, then build the backend with the `embedded-frontend`
-feature so the `frontend/dist/` tree is baked into the binary by
+feature so the workspace-root `dist/` tree is baked into the binary by
 `include_dir!`:
 
 ```sh
@@ -128,7 +128,7 @@ runtime `ServeDir` fallback and reads the dist on disk:
 
 ```sh
 cd frontend && trunk build --release && cd ..
-cargo run --release -p mysqlview-backend -- --frontend-dist ./frontend/dist
+cargo run --release -p mysqlview-backend -- --frontend-dist ./dist
 ```
 
 ## CLI flags
@@ -138,7 +138,7 @@ cargo run --release -p mysqlview-backend -- --frontend-dist ./frontend/dist
 | `--bind` | `MYSQLVIEW_BIND` | `127.0.0.1` | IP address to listen on |
 | `--port` | `MYSQLVIEW_PORT` | `3000` | Port to listen on |
 | `--database-url` | `DATABASE_URI` | *(required)* | MySQL connection URI |
-| `--frontend-dist` | `MYSQLVIEW_FRONTEND_DIST` | *(unset)* | Path to `frontend/dist` for static serving |
+| `--frontend-dist` | `MYSQLVIEW_FRONTEND_DIST` | *(unset)* | Path to the `dist` directory for static serving |
 | `--max-rows` | `MYSQLVIEW_MAX_ROWS` | `1000` | Maximum rows returned by any single query |
 | `--max-import-bytes` | `MYSQLVIEW_MAX_IMPORT_BYTES` | `104857600` (100 MiB) | Maximum body size accepted by the CSV / SQL import endpoints |
 

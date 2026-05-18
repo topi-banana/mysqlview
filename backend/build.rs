@@ -1,10 +1,10 @@
 //! Build script for the backend crate.
 //!
 //! When the `embedded-frontend` feature is enabled, verify that
-//! `frontend/dist/index.html` exists (it is produced by
-//! `trunk build --release`) so the `include_dir!` macro has something to
-//! embed at compile time. The build script does *not* invoke trunk itself —
-//! CI and Dockerfiles run trunk as an explicit prior step.
+//! `dist/index.html` exists (it is produced by `trunk build --release`) so
+//! the `include_dir!` macro has something to embed at compile time. The
+//! build script does *not* invoke trunk itself — CI and Dockerfiles run
+//! trunk as an explicit prior step.
 
 fn main() {
     println!("cargo:rerun-if-env-changed=CARGO_FEATURE_EMBEDDED_FRONTEND");
@@ -14,10 +14,7 @@ fn main() {
     }
 
     let manifest = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
-    let dist = std::path::PathBuf::from(&manifest)
-        .join("..")
-        .join("frontend")
-        .join("dist");
+    let dist = std::path::PathBuf::from(&manifest).join("..").join("dist");
     let index = dist.join("index.html");
 
     if !index.exists() {

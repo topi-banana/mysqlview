@@ -4,6 +4,7 @@ port = 8080
 
 [build]
 target = "index.html"
+dist = "../dist"
 
 [tools]
 # Pin the tailwindcss CLI to a v4 release. Trunk defaults to 3.3.5,

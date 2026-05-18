@@ -63,7 +63,7 @@ RUN apt-get update \
 
 WORKDIR /workspace
 COPY . .
-COPY --from=frontend-builder /workspace/frontend/dist /workspace/frontend/dist
+COPY --from=frontend-builder /workspace/dist /workspace/dist
 
 RUN RUST_TARGET=$(cat /tmp/rust_target) \
  && cargo build --release \

@@ -7,9 +7,9 @@ description = "Local-only MySQL WebUI backend (Axum + sqlx)"
 
 [features]
 default = []
-# Embed `frontend/dist/` into the backend binary so the server can be shipped
-# as a single executable. Requires `trunk build --release` to have produced
-# `frontend/dist/index.html` before `cargo build` runs.
+# Embed the workspace-root `dist/` into the backend binary so the server can
+# be shipped as a single executable. Requires `trunk build --release` to
+# have produced `dist/index.html` before `cargo build` runs.
 embedded-frontend = ["dep:include_dir"]
 
 [dependencies]

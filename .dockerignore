@@ -1,16 +1,44 @@
 # Everything not strictly needed for the build, to keep the COPY . context
 # small and the image cache hot.
 
-/target
-/frontend/dist
+# Build artifacts (regenerated inside the image)
+target/
+dist/
+
+# Version control & CI metadata
 .git
+.gitignore
 .github
+
+# Docker meta — the daemon reads these directly; no need to ship into context
+Dockerfile
+.dockerignore
+
+# Editor & IDE
 .idea
 .vscode
+*.iml
 *.swp
+*.swo
+*~
+
+# OS-generated
 .DS_Store
+Thumbs.db
+
+# Local environment / secrets
 .env
 .env.*
+
+# Docs (not read by cargo / trunk)
 README.md
 DESIGN.md
 LICENSE
+
+# Logs & temp files
+*.log
+*.bak
+*.orig
+
+# Defensive — in case future tooling drops these in the repo
+node_modules/
