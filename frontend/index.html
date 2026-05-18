@@ -3,6 +3,24 @@
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <script>
+            (function () {
+                try {
+                    var saved = null;
+                    try { saved = window.localStorage.getItem("mysqlview-theme"); } catch (e) {}
+                    var effective;
+                    if (saved === "light" || saved === "dark") {
+                        effective = saved;
+                    } else {
+                        effective = (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches)
+                            ? "dark" : "light";
+                    }
+                    document.documentElement.setAttribute("data-theme", effective);
+                } catch (e) {
+                    document.documentElement.setAttribute("data-theme", "light");
+                }
+            })();
+        </script>
         <title>mysqlview</title>
         <link rel="preconnect" href="https://api.fontshare.com" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />

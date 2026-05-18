@@ -5,7 +5,7 @@
 
 pub const BTN_PRIMARY: &str = "inline-flex items-center justify-center px-4 py-2 rounded-[6px] bg-primary text-white \
      font-medium text-sm hover:bg-primary-hover transition-all duration-150 \
-     hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(99,102,241,0.35)] \
+     hover:-translate-y-px hover:shadow-btn-primary-hover \
      disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 \
      disabled:hover:shadow-none";
 
@@ -29,7 +29,7 @@ pub const BTN_QUICK: &str = "inline-flex items-center justify-center px-3 py-2 r
 
 pub const CARD: &str = "block bg-surface border border-border rounded-[12px] overflow-hidden \
      transition-all duration-200 hover:-translate-y-0.5 \
-     hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)]";
+     hover:shadow-card-hover";
 
 pub const CARD_FLAT: &str = "bg-surface border border-border rounded-[12px] overflow-hidden";
 

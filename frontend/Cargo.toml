@@ -27,6 +27,9 @@ web-sys = { workspace = true, features = [
   "HtmlSelectElement",
   "HtmlTextAreaElement",
   "KeyboardEvent",
+  "MediaQueryList",
+  "MediaQueryListEvent",
+  "Storage",
   "Url",
   "Window",
 ] }

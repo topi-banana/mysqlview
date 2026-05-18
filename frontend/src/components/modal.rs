@@ -29,13 +29,13 @@ impl Component for Modal {
         let stop = Callback::from(|e: MouseEvent| e.stop_propagation());
 
         let panel_class = format!(
-            "relative w-full {} bg-surface rounded-[12px] shadow-[0_20px_60px_rgba(0,0,0,0.18)] border border-border",
+            "relative w-full {} bg-surface rounded-[12px] shadow-modal border border-border",
             p.width_class
         );
 
         html! {
             <div
-                class="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm flex items-start justify-center pt-20 px-4 overflow-y-auto"
+                class="fixed inset-0 z-50 bg-overlay backdrop-blur-sm flex items-start justify-center pt-20 px-4 overflow-y-auto"
                 onclick={backdrop}
             >
                 <div class={panel_class} onclick={stop}>
