@@ -10,3 +10,6 @@ target = "index.html"
 # which cannot parse the v4 `@theme {}` / `@import "tailwindcss"`
 # syntax in style.css.
 tailwindcss = "4.2.2"
+
+[[proxy]]
+backend = "http://127.0.0.1:3000/api"
