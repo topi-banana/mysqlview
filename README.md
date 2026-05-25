@@ -140,7 +140,7 @@ cargo run --release -p mysqlview-backend -- --frontend-dist ./dist
 | `--database-url` | `DATABASE_URI` | *(required)* | MySQL connection URI |
 | `--frontend-dist` | `MYSQLVIEW_FRONTEND_DIST` | *(unset)* | Path to the `dist` directory for static serving |
 | `--max-rows` | `MYSQLVIEW_MAX_ROWS` | `1000` | Maximum rows returned by any single query |
-| `--max-import-bytes` | `MYSQLVIEW_MAX_IMPORT_BYTES` | `104857600` (100 MiB) | Maximum body size accepted by the CSV / SQL import endpoints |
+| `--max-import-bytes` | `MYSQLVIEW_MAX_IMPORT_BYTES` | `1073741824` (1 GiB) | Maximum body size accepted by the CSV / SQL import endpoints |
 
 ## Quality checks
 
