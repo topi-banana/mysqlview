@@ -29,6 +29,12 @@ use crate::validate::{check_identifier, quote_identifier};
 
 const SQL_EXPORT_FOOTER: &str = "-- EXPORT COMPLETE\n";
 
+/// Pin the session time zone to UTC so TIMESTAMP literals in the dump
+/// re-import with the same wall-clock value they were exported with. Without
+/// this, a session running in a non-UTC `time_zone` would shift TIMESTAMP
+/// columns on import (DATETIME is unaffected — MySQL stores it verbatim).
+const SQL_EXPORT_TIME_ZONE: &str = "SET time_zone='+00:00';\n";
+
 pub async fn export_table_csv(
     State(state): State<AppState>,
     Path((db, table)): Path<(String, String)>,
@@ -80,6 +86,7 @@ pub async fn export_table_sql(
         yield Bytes::from(format!(
             "-- mysqlview export of `{db_for_stream}`.`{table_for_stream}`\n",
         ));
+        yield Bytes::from_static(SQL_EXPORT_TIME_ZONE.as_bytes());
         let mut conn = pool.acquire().await.map_err(AppError::from)?;
         let mut rows = conn.fetch(sql.as_str());
         while let Some(row) = rows.try_next().await.map_err(AppError::from)? {
@@ -119,6 +126,7 @@ pub async fn export_database_sql(
     let body = async_stream::try_stream! {
         yield Bytes::from(format!("-- mysqlview dump of `{db_for_stream}`\n"));
         yield Bytes::from_static(b"SET FOREIGN_KEY_CHECKS=0;\n");
+        yield Bytes::from_static(SQL_EXPORT_TIME_ZONE.as_bytes());
 
         for table in &tables {
             let table_name = &table.name;
@@ -256,6 +264,14 @@ mod tests {
             create_statement: String::new(),
         };
         assert_eq!(primary_key_columns(&s), vec!["id".to_string()]);
+    }
+
+    #[test]
+    fn sql_export_time_zone_preamble_pins_utc() {
+        // The dump declares its own time_zone so TIMESTAMP literals re-import
+        // with the same wall-clock instant they were exported with, regardless
+        // of the importing session's default time_zone.
+        assert_eq!(SQL_EXPORT_TIME_ZONE, "SET time_zone='+00:00';\n");
     }
 
     #[test]

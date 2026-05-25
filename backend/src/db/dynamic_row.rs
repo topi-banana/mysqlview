@@ -8,6 +8,14 @@ use sqlx::{Column, Row, TypeInfo};
 
 use crate::error::{AppError, Result};
 
+/// MySQL-compatible literal format for DATE / DATETIME / TIMESTAMP / TIME
+/// values. Kept in one place so DATETIME (read as `NaiveDateTime`) and
+/// TIMESTAMP (read as `DateTime<Utc>`) emit the same shape — the resulting
+/// strings must round-trip through CSV/SQL import as valid MySQL literals.
+const DATE_FORMAT: &str = "%Y-%m-%d";
+const DATETIME_FORMAT: &str = "%Y-%m-%d %H:%M:%S%.f";
+const TIME_FORMAT: &str = "%H:%M:%S%.f";
+
 /// Maps a MySQL column type name (as reported by sqlx `TypeInfo::name()`) to
 /// the high-level `CellKind` used to drive value extraction. This is the
 /// purely-functional core of dynamic row decoding and is exhaustively unit
@@ -117,19 +125,22 @@ fn extract(row: &MySqlRow, idx: usize, type_name: &str, kind: CellKind) -> Resul
             Err(_) => fallback_string(row, idx)?,
         },
         CellKind::Date => match row.try_get::<Option<NaiveDate>, _>(idx) {
-            Ok(Some(d)) => CellValue::String(d.format("%Y-%m-%d").to_string()),
+            Ok(Some(d)) => CellValue::String(d.format(DATE_FORMAT).to_string()),
             Ok(None) => CellValue::Null,
             Err(_) => fallback_string(row, idx)?,
         },
         CellKind::DateTime => {
             // sqlx maps DATETIME -> NaiveDateTime but TIMESTAMP -> DateTime<Utc>.
-            // Try both, then fall back to the raw string the server sent.
+            // Both branches emit the same MySQL-literal shape (no trailing tz
+            // marker) so the value re-imports cleanly. The SQL export emits a
+            // `SET time_zone='+00:00'` preamble so the UTC wall-clock survives
+            // sessions with non-UTC defaults.
             match row.try_get::<Option<NaiveDateTime>, _>(idx) {
-                Ok(Some(dt)) => CellValue::String(dt.format("%Y-%m-%d %H:%M:%S%.f").to_string()),
+                Ok(Some(dt)) => CellValue::String(dt.format(DATETIME_FORMAT).to_string()),
                 Ok(None) => CellValue::Null,
                 Err(_) => match row.try_get::<Option<DateTime<Utc>>, _>(idx) {
                     Ok(Some(dt)) => {
-                        CellValue::String(dt.format("%Y-%m-%d %H:%M:%S%.f UTC").to_string())
+                        CellValue::String(dt.naive_utc().format(DATETIME_FORMAT).to_string())
                     }
                     Ok(None) => CellValue::Null,
                     Err(_) => fallback_string(row, idx)?,
@@ -137,7 +148,7 @@ fn extract(row: &MySqlRow, idx: usize, type_name: &str, kind: CellKind) -> Resul
             }
         }
         CellKind::Time => match row.try_get::<Option<NaiveTime>, _>(idx) {
-            Ok(Some(t)) => CellValue::String(t.format("%H:%M:%S%.f").to_string()),
+            Ok(Some(t)) => CellValue::String(t.format(TIME_FORMAT).to_string()),
             Ok(None) => CellValue::Null,
             Err(_) => fallback_string(row, idx)?,
         },
@@ -338,5 +349,59 @@ mod tests {
         let bytes = b"this is text".to_vec();
         let cell = bytes_to_cell("BLOB", bytes);
         assert!(matches!(cell, CellValue::Bytes { .. }));
+    }
+
+    #[test]
+    fn date_format_matches_mysql_date_literal() {
+        let d = NaiveDate::from_ymd_opt(2026, 5, 25).unwrap();
+        assert_eq!(d.format(DATE_FORMAT).to_string(), "2026-05-25");
+    }
+
+    #[test]
+    fn datetime_format_matches_for_naive_and_utc() {
+        // Same wall-clock instant via both sqlx mappings (DATETIME → NaiveDateTime,
+        // TIMESTAMP → DateTime<Utc>) must serialise to the same string so CSV/SQL
+        // export is consistent regardless of column type.
+        let naive = NaiveDate::from_ymd_opt(2026, 5, 25)
+            .unwrap()
+            .and_hms_opt(14, 30, 45)
+            .unwrap();
+        let utc: DateTime<Utc> = DateTime::from_naive_utc_and_offset(naive, Utc);
+        let from_naive = naive.format(DATETIME_FORMAT).to_string();
+        let from_utc = utc.naive_utc().format(DATETIME_FORMAT).to_string();
+        assert_eq!(from_naive, "2026-05-25 14:30:45");
+        assert_eq!(from_naive, from_utc);
+    }
+
+    #[test]
+    fn datetime_format_emits_fractional_seconds_when_present() {
+        let naive = NaiveDate::from_ymd_opt(2026, 5, 25)
+            .unwrap()
+            .and_hms_micro_opt(14, 30, 45, 123_456)
+            .unwrap();
+        assert_eq!(
+            naive.format(DATETIME_FORMAT).to_string(),
+            "2026-05-25 14:30:45.123456"
+        );
+    }
+
+    #[test]
+    fn datetime_format_has_no_timezone_suffix() {
+        // Guards against re-introducing the " UTC" trailer that breaks MySQL
+        // literal parsing on re-import.
+        let naive = NaiveDate::from_ymd_opt(2026, 5, 25)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap();
+        let utc: DateTime<Utc> = DateTime::from_naive_utc_and_offset(naive, Utc);
+        let s = utc.naive_utc().format(DATETIME_FORMAT).to_string();
+        assert!(!s.contains("UTC"), "datetime format leaked timezone tag: {s}");
+        assert!(!s.contains('+'), "datetime format leaked offset: {s}");
+    }
+
+    #[test]
+    fn time_format_matches_mysql_time_literal() {
+        let t = NaiveTime::from_hms_opt(9, 7, 5).unwrap();
+        assert_eq!(t.format(TIME_FORMAT).to_string(), "09:07:05");
     }
 }
