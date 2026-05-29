@@ -395,7 +395,10 @@ mod tests {
             .unwrap();
         let utc: DateTime<Utc> = DateTime::from_naive_utc_and_offset(naive, Utc);
         let s = utc.naive_utc().format(DATETIME_FORMAT).to_string();
-        assert!(!s.contains("UTC"), "datetime format leaked timezone tag: {s}");
+        assert!(
+            !s.contains("UTC"),
+            "datetime format leaked timezone tag: {s}"
+        );
         assert!(!s.contains('+'), "datetime format leaked offset: {s}");
     }
 
