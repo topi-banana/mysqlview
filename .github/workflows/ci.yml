@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: taiki-e/install-action@v2.86.3
+      - uses: taiki-e/install-action@v2.86.7
         with:
           tool: taplo-cli
       - run: taplo fmt --check
@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: taiki-e/install-action@v2.86.3
+      - uses: taiki-e/install-action@v2.86.7
         with:
           tool: cargo-machete
       - run: cargo machete
@@ -113,7 +113,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: release-build-${{ matrix.target }}
-      - uses: taiki-e/install-action@v2.86.3
+      - uses: taiki-e/install-action@v2.86.7
         with:
           tool: trunk
       - name: Build frontend (release)
